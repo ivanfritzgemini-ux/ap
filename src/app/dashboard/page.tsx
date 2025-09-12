@@ -1,0 +1,373 @@
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Users, BookOpen, Briefcase, ClipboardCheck, ArrowUpRight, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle } from "lucide-react"
+import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
+import { createServerClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+
+const AdminDashboard = () => (
+  <div className="space-y-6">
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total de Estudiantes</CardTitle>
+          <Users className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">7</div>
+          <p className="text-xs text-muted-foreground">Todos los estudiantes inscritos</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total de Profesores</CardTitle>
+          <Briefcase className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">5</div>
+          <p className="text-xs text-muted-foreground">Todos los profesores activos</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total de Cursos</CardTitle>
+          <BookOpen className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">4</div>
+          <p className="text-xs text-muted-foreground">Todos los cursos disponibles</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Clases Activas</CardTitle>
+          <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">12</div>
+          <p className="text-xs text-muted-foreground">Clases en curso hoy</p>
+        </CardContent>
+      </Card>
+    </div>
+
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col md:flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ArrowUpRight className="h-5 w-5" />
+              Movimientos del Mes
+            </CardTitle>
+            <CardDescription>Ingresos y retiros de alumnos para el mes seleccionado.</CardDescription>
+          </div>
+          <Select defaultValue="agosto">
+            <SelectTrigger className="w-full md:w-[180px]">
+              <SelectValue placeholder="Seleccione un mes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="agosto">Agosto</SelectItem>
+              <SelectItem value="julio">Julio</SelectItem>
+              <SelectItem value="junio">Junio</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-lg bg-green-900/50 p-4 flex items-center gap-4">
+          <div className="p-3 rounded-full bg-green-500/20">
+            <UserPlus className="h-6 w-6 text-green-400" />
+          </div>
+          <div>
+            <p className="text-sm text-green-400">Nuevos Ingresos</p>
+            <p className="text-2xl font-bold">0</p>
+          </div>
+        </div>
+        <div className="rounded-lg bg-red-900/50 p-4 flex items-center gap-4">
+          <div className="p-3 rounded-full bg-red-500/20">
+            <UserMinus className="h-6 w-6 text-red-400" />
+          </div>
+          <div>
+            <p className="text-sm text-red-400">Alumnos Retirados</p>
+            <p className="text-2xl font-bold">0</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <div className="grid gap-6 lg:grid-cols-3">
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Resumen de Inscripciones</CardTitle>
+        </CardHeader>
+        <CardContent className="pl-2">
+           <EnrollmentChart />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Actividad Reciente</CardTitle>
+          <CardDescription>Últimas actualizaciones y adiciones al sistema.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-4">
+            <li className="flex items-start gap-3">
+              <div className="flex-shrink-0 pt-1">
+                <Book className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Nuevo Curso Agregado</p>
+                <p className="text-xs text-muted-foreground">"Intro a CS" por Dr. Alan Turing</p>
+              </div>
+              <time className="ml-auto text-xs text-muted-foreground">hace 5m</time>
+            </li>
+            <li className="flex items-start gap-3">
+              <div className="flex-shrink-0 pt-1">
+                <GraduationCap className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Profesor Actualizado</p>
+                <p className="text-xs text-muted-foreground">Sra. Jones ahora enseña "Historia Moderna"</p>
+              </div>
+              <time className="ml-auto text-xs text-muted-foreground">hace 3h</time>
+            </li>
+             <li className="flex items-start gap-3">
+              <div className="flex-shrink-0 pt-1">
+                <UserCheck className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Estudiante Inscrito</p>
+                <p className="text-xs text-muted-foreground">Diana Miller se inscribió en "Cálculo I"</p>
+              </div>
+              <time className="ml-auto text-xs text-muted-foreground">hace 3h</time>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+    
+     <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
+            <CardHeader>
+                <CardTitle>Estudiantes por Curso</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Curso</TableHead>
+                            <TableHead className="text-right">N° de Estudiantes</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow>
+                            <TableCell>1° A</TableCell>
+                            <TableCell className="text-right">1</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell>2° C</TableCell>
+                            <TableCell className="text-right">0</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell>1° B</TableCell>
+                            <TableCell className="text-right">0</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell>2° A</TableCell>
+                            <TableCell className="text-right">0</TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-400">
+                    <CheckCircle className="h-5 w-5"/>
+                    Alumnos con Asistencia 100%
+                </CardTitle>
+                <CardDescription>Selecciona un mes para ver el listado y generar un informe para imprimir.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <Select defaultValue="junio">
+                    <SelectTrigger className="w-full md:w-[180px] mb-4">
+                        <SelectValue placeholder="Seleccione un mes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="agosto">Agosto</SelectItem>
+                        <SelectItem value="julio">Julio</SelectItem>
+                        <SelectItem value="junio">Junio</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <div className="border rounded-lg p-4 h-48 flex items-center justify-center">
+                    <p className="text-muted-foreground">No hay alumnos con 100% de asistencia para el mes seleccionado.</p>
+                </div>
+            </CardContent>
+        </Card>
+     </div>
+  </div>
+);
+
+const TeacherDashboard = () => (
+    <div className="grid gap-6">
+        <Card>
+            <CardHeader>
+                <CardTitle>Tus Clases de Hoy</CardTitle>
+                <CardDescription>Este es tu horario de clases para hoy.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Hora</TableHead>
+                            <TableHead>Clase</TableHead>
+                            <TableHead>Salón</TableHead>
+                            <TableHead>Estado</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow>
+                            <TableCell>9:00 AM - 10:00 AM</TableCell>
+                            <TableCell>Grado 10 - Matemáticas</TableCell>
+                            <TableCell>301A</TableCell>
+                            <TableCell>Próxima</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell>10:15 AM - 11:15 AM</TableCell>
+                            <TableCell>Grado 11 - Física</TableCell>
+                            <TableCell>402B</TableCell>
+                            <TableCell>Completada</TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader>
+                <CardTitle>Anuncios Recientes</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>Reunión de personal a las 3 PM en la sala de conferencias principal.</p>
+            </CardContent>
+        </Card>
+    </div>
+);
+
+const ParentDashboard = () => (
+    <div className="grid gap-6">
+        <Card>
+            <CardHeader>
+                <CardTitle>Resumen de su Hijo (Alex Doe)</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Calificaciones Recientes</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="space-y-2 text-sm">
+                            <li className="flex justify-between"><span>Examen de Matemáticas:</span> <span className="font-bold">A-</span></li>
+                            <li className="flex justify-between"><span>Ensayo de Historia:</span> <span className="font-bold">B+</span></li>
+                        </ul>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Asistencia</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-2xl font-bold">98%</p>
+                        <p className="text-xs text-muted-foreground">1 ausencia este semestre.</p>
+                    </CardContent>
+                </Card>
+            </CardContent>
+        </Card>
+    </div>
+);
+
+const StudentDashboard = () => (
+    <div className="grid gap-6">
+        <Card>
+            <CardHeader>
+                <CardTitle>Tu Horario</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>Tienes Matemáticas a continuación en el Salón 301A.</p>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader>
+                <CardTitle>Calificaciones Recientes</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>Examen de Matemáticas: A-</p>
+            </CardContent>
+        </Card>
+    </div>
+);
+
+export default async function DashboardPage() {
+    const supabase = createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return redirect('/login');
+    }
+
+    const { data: userData } = await supabase
+      .from('usuarios')
+      .select(`
+        roles (
+          nombre_rol
+        )
+      `)
+      .eq('id', user.id)
+      .single();
+    
+    const roleData = userData?.roles as { nombre_rol: string } | null;
+    const userRole = roleData?.nombre_rol || 'student';
+
+    let DashboardComponent;
+    switch (userRole) {
+        case "administrator":
+            DashboardComponent = AdminDashboard;
+            break;
+        case "teacher":
+            DashboardComponent = TeacherDashboard;
+            break;
+        case "parent":
+            DashboardComponent = ParentDashboard;
+            break;
+        case "student":
+            DashboardComponent = StudentDashboard;
+            break;
+        default:
+            DashboardComponent = () => <div>¡Bienvenido a CampusConnect!</div>;
+    }
+
+    return (
+        <div className="flex flex-col gap-6">
+            <h1 className="text-2xl font-headline font-semibold">Panel de Control</h1>
+            <DashboardComponent />
+        </div>
+    );
+};

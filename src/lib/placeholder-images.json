@@ -1,0 +1,10 @@
+{
+  "placeholderImages": [
+    {
+      "id": "hero-image",
+      "description": "A vibrant and modern school campus or classroom setting.",
+      "imageUrl": "https://picsum.photos/seed/campus-connect-hero/1200/800",
+      "imageHint": "modern classroom"
+    }
+  ]
+}
