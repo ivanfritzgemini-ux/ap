@@ -25,8 +25,12 @@ import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
 import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 
-const AdminDashboard = () => (
+const AdminDashboard = ({ fullName, role }: { fullName: string; role: string }) => (
   <div className="space-y-6">
+    <div>
+      <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
+      <p className="text-sm text-muted-foreground">{role}</p>
+    </div>
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -227,8 +231,12 @@ const AdminDashboard = () => (
   </div>
 );
 
-const TeacherDashboard = () => (
+const TeacherDashboard = ({ fullName, role }: { fullName: string; role: string }) => (
     <div className="grid gap-6">
+        <div>
+          <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
+          <p className="text-sm text-muted-foreground">{role}</p>
+        </div>
         <Card>
             <CardHeader>
                 <CardTitle>Tus Clases de Hoy</CardTitle>
@@ -272,8 +280,12 @@ const TeacherDashboard = () => (
     </div>
 );
 
-const ParentDashboard = () => (
+const ParentDashboard = ({ fullName, role }: { fullName: string; role: string }) => (
     <div className="grid gap-6">
+        <div>
+          <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
+          <p className="text-sm text-muted-foreground">{role}</p>
+        </div>
         <Card>
             <CardHeader>
                 <CardTitle>Resumen de su Hijo (Alex Doe)</CardTitle>
@@ -304,8 +316,12 @@ const ParentDashboard = () => (
     </div>
 );
 
-const StudentDashboard = () => (
+const StudentDashboard = ({ fullName, role }: { fullName: string; role: string }) => (
     <div className="grid gap-6">
+        <div>
+          <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
+          <p className="text-sm text-muted-foreground">{role}</p>
+        </div>
         <Card>
             <CardHeader>
                 <CardTitle>Tu Horario</CardTitle>
@@ -336,6 +352,8 @@ export default async function DashboardPage() {
     const { data: userData } = await supabase
       .from('usuarios')
       .select(`
+        nombres,
+        apellidos,
         roles (
           nombre_rol
         )
@@ -343,26 +361,55 @@ export default async function DashboardPage() {
       .eq('id', user.id)
       .single();
     
-    const roleData = userData?.roles as { nombre_rol: string } | null;
-    const userRole = roleData?.nombre_rol || 'student';
+    // 'roles' relationship may come as an array or an object depending on the query
+    const rolesRaw = (userData as any)?.roles;
+    let userRole: string = 'student';
+    if (Array.isArray(rolesRaw)) {
+      userRole = rolesRaw[0]?.nombre_rol ?? 'student';
+    } else if (rolesRaw && typeof rolesRaw === 'object') {
+      userRole = (rolesRaw as any).nombre_rol ?? 'student';
+    }
+    // Trim whitespace/newlines and keep raw for display
+    userRole = String(userRole ?? '').trim();
+
+    // Normalize to canonical role keys for logic
+    const normalizeRole = (r: string) => {
+      const s = (r || '').toString().toLowerCase().trim();
+      if (s.includes('admin')) return 'administrator';
+      if (s.includes('teacher') || s.includes('profesor')) return 'teacher';
+      if (s.includes('parent') || s.includes('padre') || s.includes('madre')) return 'parent';
+      if (s.includes('student') || s.includes('estudiante') || s.includes('alumno')) return 'student';
+      return s || 'student';
+    }
+    const normalizedRole = normalizeRole(userRole);
+
+    const firstName = (userData as any)?.nombres ?? '';
+    const lastName = (userData as any)?.apellidos ?? '';
+    const fullName = [firstName, lastName].filter(Boolean).join(' ') || (user.email ?? '');
 
     let DashboardComponent;
-    switch (userRole) {
-        case "administrator":
-            DashboardComponent = AdminDashboard;
-            break;
-        case "teacher":
-            DashboardComponent = TeacherDashboard;
-            break;
-        case "parent":
-            DashboardComponent = ParentDashboard;
-            break;
-        case "student":
-            DashboardComponent = StudentDashboard;
-            break;
-        default:
-            DashboardComponent = () => <div>¡Bienvenido a CampusConnect!</div>;
-    }
+  // Decide which dashboard to render using the normalized role key.
+  switch (normalizedRole) {
+    case "administrator":
+      DashboardComponent = () => <AdminDashboard fullName={fullName} role={userRole} />;
+      break;
+    case "teacher":
+      DashboardComponent = () => <TeacherDashboard fullName={fullName} role={userRole} />;
+      break;
+    case "parent":
+      DashboardComponent = () => <ParentDashboard fullName={fullName} role={userRole} />;
+      break;
+    case "student":
+      DashboardComponent = () => <StudentDashboard fullName={fullName} role={userRole} />;
+      break;
+    default:
+      DashboardComponent = () => (
+        <div>
+        <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
+        <p className="text-sm text-muted-foreground">{userRole}</p>
+        </div>
+      );
+  }
 
     return (
         <div className="flex flex-col gap-6">

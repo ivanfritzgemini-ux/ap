@@ -57,18 +57,35 @@ const navItems = {
 };
 
 const getNavLinksForRole = (role: Role) => {
-    switch (role) {
-        case 'administrator':
-            return [...navItems.all, ...navItems.administrator];
-        case 'teacher':
-            return [...navItems.all, ...navItems.teacher];
-        case 'parent':
-            return [...navItems.all, ...navItems.parent];
-        case 'student':
-            return [...navItems.all, ...navItems.student];
-        default:
-            return navItems.all;
-    }
+  const normalized = (role || '').toString().toLowerCase();
+  // If administrator (accept english/spanish/variants), return every available nav item (from all groups) without duplicates
+  if (normalized === 'administrator' || normalized === 'administrador' || normalized.includes('admin')) {
+    const combined = [
+      ...navItems.all,
+      ...navItems.administrator,
+      ...navItems.teacher,
+      ...navItems.parent,
+      ...navItems.student,
+    ];
+    const seen = new Set<string>();
+    return combined.filter(item => {
+      const key = item.href + '|' + item.label;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  switch (role) {
+    case 'teacher':
+      return [...navItems.all, ...navItems.teacher];
+    case 'parent':
+      return [...navItems.all, ...navItems.parent];
+    case 'student':
+      return [...navItems.all, ...navItems.student];
+    default:
+      return navItems.all;
+  }
 }
 
 export function SidebarNav({ userRole }: SidebarNavProps) {

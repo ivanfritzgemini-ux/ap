@@ -32,9 +32,25 @@ export default async function DashboardLayout({
     .eq('id', user.id)
     .single();
 
-  // Aseguramos que el tipo de dato sea correcto y extraemos el nombre_rol
-  const roleData = userData?.roles as { nombre_rol: string } | null;
-  const userRole = roleData?.nombre_rol || 'student';
+  // 'roles' relationship may come as an array or an object depending on the query
+  const rolesRaw = (userData as any)?.roles;
+  let userRole: string = 'student';
+  if (Array.isArray(rolesRaw)) {
+    userRole = rolesRaw[0]?.nombre_rol ?? 'student';
+  } else if (rolesRaw && typeof rolesRaw === 'object') {
+    userRole = (rolesRaw as any).nombre_rol ?? 'student';
+  }
+  // Trim whitespace/newlines
+  userRole = String(userRole ?? '').trim();
+  const normalizeRole = (r: string) => {
+    const s = (r || '').toString().toLowerCase().trim();
+    if (s.includes('admin')) return 'administrator';
+    if (s.includes('teacher') || s.includes('profesor')) return 'teacher';
+    if (s.includes('parent') || s.includes('padre') || s.includes('madre')) return 'parent';
+    if (s.includes('student') || s.includes('estudiante') || s.includes('alumno')) return 'student';
+    return s || 'student';
+  }
+  const normalizedRole = normalizeRole(userRole);
 
 
   return (
@@ -49,7 +65,7 @@ export default async function DashboardLayout({
              <SidebarTrigger className="md:hidden" />
           </div>
           <SidebarContent>
-            <SidebarNav userRole={userRole} />
+            <SidebarNav userRole={normalizedRole} />
           </SidebarContent>
           <SidebarFooter>
             <UserNav user={user} />
