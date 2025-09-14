@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2 } from "lucide-react";
-import { users as mockUsers } from "@/lib/data";
+import { users as mockUsers } from "@/lib/mock-data";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,7 @@ import {
 import type { User } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatRut } from "@/lib/utils";
 
 type SortKey = keyof User;
 
@@ -87,9 +88,9 @@ const initialNewUserState = {
     role: ""
 };
 
-export function UserManagementClient() {
+export function UserManagementClient({ users: initialUsers }: { users?: User[] }) {
     const { toast } = useToast();
-    const [users, setUsers] = React.useState<User[]>([]);
+    const [users, setUsers] = React.useState<User[]>(initialUsers || mockUsers);
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
     const [searchTerm, setSearchTerm] = React.useState("");
     const [sortConfig, setSortConfig] = React.useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>(null);
@@ -97,10 +98,6 @@ export function UserManagementClient() {
     const itemsPerPage = 5;
 
     const [newUser, setNewUser] = React.useState(initialNewUserState);
-
-    React.useEffect(() => {
-        setUsers(mockUsers);
-    }, []);
 
     React.useEffect(() => {
         if (!isDialogOpen) {
@@ -345,7 +342,7 @@ export function UserManagementClient() {
           <TableBody>
             {currentUsers.map((user) => (
               <TableRow key={user.id}>
-                <TableCell className="hidden sm:table-cell">{user.rut}</TableCell>
+                <TableCell className="hidden sm:table-cell">{formatRut(user.rut)}</TableCell>
                 <TableCell className="font-medium">{user.name}</TableCell>
                 <TableCell className="hidden lg:table-cell">{user.gender}</TableCell>
                 <TableCell className="hidden md:table-cell">{user.email}</TableCell>
@@ -435,7 +432,7 @@ export function UserManagementClient() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                    <p><span className="font-semibold">RUT:</span> {user.rut}</p>
+                    <p><span className="font-semibold">RUT:</span> {formatRut(user.rut)}</p>
                     <p><span className="font-semibold">Correo:</span> {user.email}</p>
                     <div className="flex items-center gap-2"><span className="font-semibold">Rol:</span> <Badge variant="outline">{user.role}</Badge></div>
                 </CardContent>

@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2 } from "lucide-react";
-import { users as mockUsers } from "@/lib/data";
+import { users as mockUsers } from "@/lib/mock-data";
 import {
   Dialog,
   DialogContent,

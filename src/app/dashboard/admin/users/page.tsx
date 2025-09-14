@@ -1,6 +1,9 @@
 import { UserManagementClient } from "@/components/dashboard/admin/user-management-client";
+import { fetchUsers } from "@/lib/data";
 
-export default function UserManagementPage() {
+export default async function UserManagementPage() {
+  const users = await fetchUsers();
+
   return (
     <div className="space-y-6">
       <div>
@@ -9,7 +12,7 @@ export default function UserManagementPage() {
           Crear, editar y gestionar todos los usuarios en el sistema.
         </p>
       </div>
-      <UserManagementClient />
+      <UserManagementClient users={users} />
     </div>
   );
 }
