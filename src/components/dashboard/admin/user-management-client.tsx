@@ -89,45 +89,194 @@ const initialNewUserState = {
 };
 
 export function UserManagementClient({ users: initialUsers }: { users?: User[] }) {
-    const { toast } = useToast();
-    const [users, setUsers] = React.useState<User[]>(initialUsers || mockUsers);
+  const { toast } = useToast();
+  const [users, setUsers] = React.useState<User[]>(initialUsers || []);
+  const [loading, setLoading] = React.useState(false);
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
     const [searchTerm, setSearchTerm] = React.useState("");
-    const [sortConfig, setSortConfig] = React.useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>(null);
+  const [sortConfig, setSortConfig] = React.useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'name', direction: 'ascending' });
     const [currentPage, setCurrentPage] = React.useState(1);
     const itemsPerPage = 5;
 
-    const [newUser, setNewUser] = React.useState(initialNewUserState);
+  const [newUser, setNewUser] = React.useState(initialNewUserState);
+  const [editingUserId, setEditingUserId] = React.useState<string | null>(null);
+  const [roles, setRoles] = React.useState<Array<{id:string,nombre_rol:string}>>([])
+  const [sexos, setSexos] = React.useState<Array<{id:string,nombre:string}>>([])
 
-    React.useEffect(() => {
-        if (!isDialogOpen) {
-            setNewUser(initialNewUserState);
-        }
-    }, [isDialogOpen]);
+  React.useEffect(() => {
+    if (!isDialogOpen) {
+      setNewUser(initialNewUserState);
+      setEditingUserId(null);
+    }
+  }, [isDialogOpen]);
 
-    const handleCreateUser = () => {
-        if (!newUser.firstName.trim()) {
-            return;
-        }
-        toast({
-            title: "Usuario Creado",
-            description: `El usuario ${newUser.firstName} ha sido añadido exitosamente.`,
-        });
-        setIsDialogOpen(false);
-    };
+  // Fetch users from API on mount
+  React.useEffect(() => {
+    let mounted = true
+    async function load() {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/users')
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.error || 'Failed to load users')
+  if (mounted) setUsers((json.data || []).slice().sort((a: any, b: any) => (String(a.name || '').localeCompare(String(b.name || '')))))
+        // fetch roles and sexos
+        const [rolesRes, sexosRes] = await Promise.all([fetch('/api/roles'), fetch('/api/sexos')])
+        const rolesJson = await rolesRes.json()
+        const sexosJson = await sexosRes.json()
+        if (rolesRes.ok) setRoles(rolesJson.data || [])
+        if (sexosRes.ok) setSexos(sexosJson.data || [])
+      } catch (e: any) {
+        toast({ title: 'Error', description: e.message || 'Error cargando usuarios' })
+      } finally { setLoading(false) }
+    }
+    load()
+    return () => { mounted = false }
+  }, [])
 
-    const handleDeleteUser = (userId: string) => {
-        setUsers(users.filter(user => user.id !== userId));
-        toast({
-            title: "Usuario Eliminado",
-            description: "El usuario ha sido eliminado exitosamente.",
-        });
-    };
+  const handleCreateUser = async () => {
+    if (!newUser.firstName.trim()) return
+    const payload = {
+      rut: newUser.rut,
+      nombres: newUser.firstName,
+      apellidos: newUser.lastName,
+      sexo_id: newUser.gender, // should be id from sexos list
+      email: newUser.email,
+      telefono: newUser.phone,
+      direccion: newUser.address,
+      rol_id: newUser.role, // should be id from roles list
+      fecha_nacimiento: `${newUser.birthYear}-${String(newUser.birthMonth).padStart(2,'0')}-${String(newUser.birthDay).padStart(2,'0')}`
+    }
+    try {
+      if (editingUserId) {
+        // update flow
+        const res = await fetch(`/api/users/${editingUserId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.error || 'Error updating user')
+        setUsers(prev => {
+          const updated = prev.map(u => (u.id === editingUserId ? json.data : u))
+          updated.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+          // ensure current page shows the updated user
+          const idx = updated.findIndex(u => u.id === editingUserId)
+          if (idx >= 0) setCurrentPage(Math.floor(idx / itemsPerPage) + 1)
+          return updated
+        })
+        toast({ title: 'Usuario Actualizado', description: `El usuario ${newUser.firstName} ha sido actualizado.` })
+      } else {
+        const res = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.error || 'Error creating user')
+        // add to list
+        setUsers(prev => {
+          const next = [json.data, ...prev]
+          next.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+          // show page containing the new user
+          const idx = next.findIndex(u => u.id === json.data.id)
+          if (idx >= 0) setCurrentPage(Math.floor(idx / itemsPerPage) + 1)
+          return next
+        })
+        toast({ title: 'Usuario Creado', description: `El usuario ${newUser.firstName} ha sido añadido.` })
+      }
+      setIsDialogOpen(false)
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message || 'No se pudo crear/actualizar el usuario' })
+    }
+  }
 
-    const filteredUsers = users.filter(user =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  const handleEditClick = (user: User) => {
+    // fill modal with user info
+    const usr: any = user
+    // Try to use apellidos/nombres fields if available, otherwise split by last space
+    let lastName = ''
+    let firstName = ''
+    if (usr.apellidos || usr.nombres) {
+      lastName = usr.apellidos || ''
+      firstName = usr.nombres || ''
+    } else if (usr.name) {
+      const parts = usr.name.trim().split(' ')
+      if (parts.length === 1) {
+        firstName = parts[0]
+      } else {
+        lastName = parts.slice(0, parts.length - 1).join(' ')
+        firstName = parts[parts.length - 1]
+      }
+    }
+
+    // parse fecha_nacimiento if present (YYYY-MM-DD)
+    let birthDay = ''
+    let birthMonth = ''
+    let birthYear = ''
+    if (usr.fecha_nacimiento) {
+      const m = String(usr.fecha_nacimiento).match(/(\d{4})-(\d{2})-(\d{2})/)
+      if (m) {
+        birthYear = m[1]
+        birthMonth = String(Number(m[2]))
+        birthDay = String(Number(m[3]))
+      }
+    }
+
+    // Prefer to use sexo_id and rol_id if available (they should be UUIDs)
+    let genderVal: string = usr.sexo_id || ''
+    let roleVal: string = usr.rol_id || ''
+
+    // Fallback: try to map by label (match nombre/nombre_rol) or by substring
+    if (!genderVal && usr.gender) {
+      const found = sexos.find(s => s.nombre && String(s.nombre).toLowerCase() === String(usr.gender).toLowerCase())
+      if (found) genderVal = found.id
+      else {
+        const found2 = sexos.find(s => s.nombre && String(usr.gender).toLowerCase().includes(String(s.nombre).toLowerCase()))
+        if (found2) genderVal = found2.id
+      }
+    }
+
+    if (!roleVal && usr.role) {
+      const byExact = roles.find(r => r.nombre_rol && String(r.nombre_rol).toLowerCase() === String(usr.role).toLowerCase())
+      if (byExact) roleVal = byExact.id
+      else {
+        const byContains = roles.find(r => r.nombre_rol && String(r.nombre_rol).toLowerCase().includes(String(usr.role).toLowerCase()))
+        if (byContains) roleVal = byContains.id
+      }
+    }
+
+    setNewUser({
+      rut: usr.rut || '',
+      lastName: lastName || '',
+      firstName: firstName || '',
+      gender: genderVal,
+      birthDay,
+      birthMonth,
+      birthYear,
+      address: usr.direccion || '',
+      email: usr.email || '',
+      phone: usr.telefono || '',
+      role: roleVal
+    })
+    setEditingUserId(user.id)
+    setIsDialogOpen(true)
+  }
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.error || 'Error deleting user')
+      setUsers(prev => {
+        const next = prev.filter(u => u.id !== userId)
+        next.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+        const totalPagesAfter = Math.max(1, Math.ceil(next.length / itemsPerPage))
+        if (currentPage > totalPagesAfter) setCurrentPage(totalPagesAfter)
+        return next
+      })
+      toast({ title: 'Usuario Eliminado', description: 'El usuario ha sido eliminado exitosamente.' })
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message || 'No se pudo eliminar el usuario' })
+    }
+  };
+
+  const filteredUsers = users.filter(user =>
+    (user.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.email ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
     const sortedUsers = React.useMemo(() => {
         let sortableUsers = [...filteredUsers];
@@ -234,15 +383,14 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                 <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                         <Label htmlFor="gender">Sexo</Label>
-                        <Select onValueChange={handleSelectChange('gender')} value={newUser.gender}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Seleccione el sexo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="masculino">Masculino</SelectItem>
-                                <SelectItem value="femenino">Femenino</SelectItem>
-                            </SelectContent>
-                        </Select>
+            <Select onValueChange={handleSelectChange('gender')} value={newUser.gender}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccione el sexo" />
+              </SelectTrigger>
+              <SelectContent>
+                {sexos.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
                     </div>
                     <div className="grid gap-2">
                         <Label>Fecha de nacimiento</Label>
@@ -290,22 +438,19 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="role">Rol</Label>
-                    <Select onValueChange={handleSelectChange('role')} value={newUser.role}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un rol" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="administrator">Administrador</SelectItem>
-                            <SelectItem value="teacher">Profesor</SelectItem>
-                            <SelectItem value="student">Estudiante</SelectItem>
-                            <SelectItem value="parent">Padre</SelectItem>
-                        </SelectContent>
-                    </Select>
+          <Select onValueChange={handleSelectChange('role')} value={newUser.role}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccione un rol" />
+            </SelectTrigger>
+            <SelectContent>
+              {roles.map(r => <SelectItem key={r.id} value={r.id}>{r.nombre_rol}</SelectItem>)}
+            </SelectContent>
+          </Select>
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" onClick={handleCreateUser}>Crear Usuario</Button>
+              <Button type="submit" onClick={handleCreateUser}>{editingUserId ? 'Guardar Cambios' : 'Crear Usuario'}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -342,7 +487,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
           <TableBody>
             {currentUsers.map((user) => (
               <TableRow key={user.id}>
-                <TableCell className="hidden sm:table-cell">{formatRut(user.rut)}</TableCell>
+                <TableCell className="hidden sm:table-cell">{formatRut(user.rut || '')}</TableCell>
                 <TableCell className="font-medium">{user.name}</TableCell>
                 <TableCell className="hidden lg:table-cell">{user.gender}</TableCell>
                 <TableCell className="hidden md:table-cell">{user.email}</TableCell>
@@ -361,7 +506,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem>Editar</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                     <Trash2 className="mr-2 h-4 w-4" />
@@ -407,7 +552,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem>Editar</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
                                 <AlertDialogTrigger asChild>
                                     <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                         <Trash2 className="mr-2 h-4 w-4" />
@@ -432,7 +577,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                    <p><span className="font-semibold">RUT:</span> {formatRut(user.rut)}</p>
+                    <p><span className="font-semibold">RUT:</span> {formatRut(user.rut || '')}</p>
                     <p><span className="font-semibold">Correo:</span> {user.email}</p>
                     <div className="flex items-center gap-2"><span className="font-semibold">Rol:</span> <Badge variant="outline">{user.role}</Badge></div>
                 </CardContent>

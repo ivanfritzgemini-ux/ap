@@ -22,7 +22,7 @@ export async function fetchUsers(): Promise<User[]> {
 
   return data.map((user) => ({
     id: user.id,
-    name: `${user.nombres} ${user.apellidos}`,
+    name: `${user.apellidos || ''} ${user.nombres || ''}`.trim(),
     email: user.email,
     rut: user.rut,
     // @ts-ignore

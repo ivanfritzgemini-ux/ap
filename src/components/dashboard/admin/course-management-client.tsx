@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2 } from "lucide-react";
-import { courses as mockCourses } from "@/lib/data";
 import {
   Dialog,
   DialogContent,
@@ -64,9 +63,10 @@ export function CourseManagementClient() {
 
     const [newCourse, setNewCourse] = React.useState(initialNewCourseState);
 
-    React.useEffect(() => {
-        setCourses(mockCourses);
-    }, []);
+  React.useEffect(() => {
+    // TODO: replace with API call to load courses
+    setCourses([]);
+  }, []);
 
     React.useEffect(() => {
         if (!isDialogOpen) {

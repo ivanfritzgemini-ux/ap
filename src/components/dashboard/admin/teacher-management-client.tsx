@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2 } from "lucide-react";
-import { users as mockUsers } from "@/lib/data";
+// data will be fetched from API where needed
 import {
   Dialog,
   DialogContent,
@@ -63,9 +63,10 @@ export function TeacherManagementClient() {
 
     const [newTeacher, setNewTeacher] = React.useState(initialNewTeacherState);
 
-    React.useEffect(() => {
-        setTeachers(mockUsers.filter(u => u.role === 'teacher'));
-    }, []);
+  React.useEffect(() => {
+    // TODO: replace with API call to load teachers
+    setTeachers([])
+  }, []);
 
     React.useEffect(() => {
         if (!isDialogOpen) {
