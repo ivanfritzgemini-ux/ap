@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2 } from "lucide-react";
-import { users as mockUsers } from "@/lib/mock-data";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +39,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { User } from "@/lib/types";
+import type { Student } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -51,7 +50,7 @@ import {
 } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type SortKey = keyof User;
+type SortKey = keyof Student;
 
 const months = [
   { value: 1, label: "Enero" },
@@ -73,24 +72,27 @@ const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
 const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
 const initialNewStudentState = {
-    registrationNumber: "",
     rut: "",
-    lastName: "",
-    name: "",
-    sex: "",
+    apellidos: "",
+    nombres: "",
+    sexo: "",
     birthDay: "",
     birthMonth: "",
     birthYear: "",
     enrollmentDate: "",
-    course: "",
+    curso: "",
     email: "",
     phone: "",
     address: ""
 };
 
-export function StudentManagementClient() {
+interface StudentManagementClientProps {
+  students: Student[];
+}
+
+export function StudentManagementClient({ students: initialStudents }: StudentManagementClientProps) {
     const { toast } = useToast();
-    const [students, setStudents] = React.useState<User[]>([]);
+    const [students, setStudents] = React.useState<Student[]>(initialStudents);
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
     const [searchTerm, setSearchTerm] = React.useState("");
     const [sortConfig, setSortConfig] = React.useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>(null);
@@ -99,10 +101,6 @@ export function StudentManagementClient() {
 
     const [newStudent, setNewStudent] = React.useState(initialNewStudentState);
 
-    React.useEffect(() => {
-        setStudents(mockUsers.filter(u => u.role === 'student'));
-    }, []);
-
      React.useEffect(() => {
         if (!isDialogOpen) {
             setNewStudent(initialNewStudentState);
@@ -110,12 +108,12 @@ export function StudentManagementClient() {
     }, [isDialogOpen]);
 
     const handleCreateStudent = () => {
-        if (!newStudent.name.trim()) {
+        if (!newStudent.nombres.trim()) {
             return;
         }
         toast({
             title: "Estudiante Matriculado",
-            description: `${newStudent.name} ha sido añadido exitosamente.`,
+            description: `${newStudent.nombres} ha sido añadido exitosamente.`,
         });
         setIsDialogOpen(false);
     };
@@ -129,8 +127,8 @@ export function StudentManagementClient() {
     };
 
     const filteredStudents = students.filter(student =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.nombres.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.rut?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -200,7 +198,7 @@ export function StudentManagementClient() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Buscar por nombre, RUT, o registro..."
+            placeholder="Buscar por nombre, RUT..."
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -224,7 +222,7 @@ export function StudentManagementClient() {
                 <div className="space-y-4">
                     <div className="grid gap-2">
                         <Label htmlFor="registration-number">Número de Registro</Label>
-                        <Input id="registration-number" value={newStudent.registrationNumber} onChange={handleInputChange} />
+                        <Input id="registration-number" value={newStudent.rut} onChange={handleInputChange} />
                     </div>
                      <div className="grid gap-2">
                         <Label htmlFor="rut">RUT</Label>
@@ -238,17 +236,17 @@ export function StudentManagementClient() {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
                             <Label htmlFor="last-name">Apellidos</Label>
-                            <Input id="lastName" placeholder="Ej: Pérez Díaz" value={newStudent.lastName} onChange={handleInputChange} />
+                            <Input id="apellidos" placeholder="Ej: Pérez Díaz" value={newStudent.apellidos} onChange={handleInputChange} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="name">Nombres</Label>
-                            <Input id="name" placeholder="Ej: Juan" value={newStudent.name} onChange={handleInputChange} />
+                            <Input id="nombres" placeholder="Ej: Juan" value={newStudent.nombres} onChange={handleInputChange} />
                         </div>
                     </div>
                      <div className="grid grid-cols-2 gap-4">
                          <div className="grid gap-2">
                             <Label htmlFor="sex">Sexo</Label>
-                             <Select onValueChange={handleSelectChange('sex')} value={newStudent.sex}>
+                             <Select onValueChange={handleSelectChange('sexo')} value={newStudent.sexo}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Seleccione el sexo" />
                                 </SelectTrigger>
@@ -298,7 +296,7 @@ export function StudentManagementClient() {
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="course">Curso</Label>
-                            <Select onValueChange={handleSelectChange('course')} value={newStudent.course}>
+                            <Select onValueChange={handleSelectChange('curso')} value={newStudent.curso}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Seleccione un curso" />
                                 </SelectTrigger>
@@ -337,29 +335,34 @@ export function StudentManagementClient() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden sm:table-cell">
-                <Button variant="ghost" onClick={() => requestSort('registrationNumber')}>
-                    N° Registro
-                    {getSortIndicator('registrationNumber')}
+              <TableHead className="hidden md:table-cell">
+                <Button variant="ghost" onClick={() => requestSort('rut')}>
+                    RUT
+                    {getSortIndicator('rut')}
                 </Button>
               </TableHead>
-              <TableHead className="hidden md:table-cell">RUT</TableHead>
               <TableHead>
-                <Button variant="ghost" onClick={() => requestSort('name')}>
-                    Nombre del alumno
-                    {getSortIndicator('name')}
+                <Button variant="ghost" onClick={() => requestSort('nombres')}>
+                    Nombres
+                    {getSortIndicator('nombres')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button variant="ghost" onClick={() => requestSort('apellidos')}>
+                    Apellidos
+                    {getSortIndicator('apellidos')}
                 </Button>
               </TableHead>
               <TableHead className="hidden lg:table-cell">
-                 <Button variant="ghost" onClick={() => requestSort('gender')}>
+                 <Button variant="ghost" onClick={() => requestSort('sexo')}>
                     Sexo
-                    {getSortIndicator('gender')}
+                    {getSortIndicator('sexo')}
                 </Button>
               </TableHead>
               <TableHead>
-                <Button variant="ghost" onClick={() => requestSort('course')}>
+                <Button variant="ghost" onClick={() => requestSort('curso')}>
                     Curso
-                    {getSortIndicator('course')}
+                    {getSortIndicator('curso')}
                 </Button>
               </TableHead>
               <TableHead>
@@ -370,11 +373,11 @@ export function StudentManagementClient() {
           <TableBody>
             {currentStudents.map((student) => (
               <TableRow key={student.id}>
-                <TableCell className="hidden sm:table-cell">{student.registrationNumber}</TableCell>
                 <TableCell className="hidden md:table-cell">{student.rut}</TableCell>
-                <TableCell className="font-medium">{student.name}</TableCell>
-                <TableCell className="hidden lg:table-cell">{student.gender}</TableCell>
-                <TableCell>{student.course}</TableCell>
+                <TableCell className="font-medium">{student.nombres}</TableCell>
+                <TableCell className="font-medium">{student.apellidos}</TableCell>
+                <TableCell className="hidden lg:table-cell">{student.sexo}</TableCell>
+                <TableCell>{student.curso}</TableCell>
                 <TableCell>
                   <div className="flex justify-end">
                     <AlertDialog>
@@ -421,7 +424,7 @@ export function StudentManagementClient() {
           <Card key={student.id}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span className="text-base">{student.name}</span>
+                <span className="text-base">{`${student.nombres} ${student.apellidos}`}</span>
                 <AlertDialog>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -457,9 +460,8 @@ export function StudentManagementClient() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <p><span className="font-semibold">N° Registro:</span> {student.registrationNumber}</p>
               <p><span className="font-semibold">RUT:</span> {student.rut}</p>
-              <p><span className="font-semibold">Curso:</span> {student.course}</p>
+              <p><span className="font-semibold">Curso:</span> {student.curso}</p>
             </CardContent>
           </Card>
         ))}

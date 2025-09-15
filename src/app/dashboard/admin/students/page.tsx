@@ -1,6 +1,9 @@
 import { StudentManagementClient } from "@/components/dashboard/admin/student-management-client";
+import { getStudents } from "@/lib/data";
 
-export default function StudentManagementPage() {
+export default async function StudentManagementPage() {
+  const students = await getStudents();
+
   return (
     <div className="space-y-6">
       <div>
@@ -9,7 +12,7 @@ export default function StudentManagementPage() {
           Añadir, editar y gestionar todos los estudiantes en el sistema.
         </p>
       </div>
-      <StudentManagementClient />
+      <StudentManagementClient students={students} />
     </div>
   );
 }

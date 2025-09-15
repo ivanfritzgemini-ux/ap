@@ -18,3 +18,13 @@ export interface Course {
     headTeacher: string;
     studentCount: number;
 }
+
+export interface Student {
+  id: string;
+  rut: string;
+  nombres: string;
+  apellidos: string;
+  curso: string;
+  sexo: string;
+  email: string;
+}
