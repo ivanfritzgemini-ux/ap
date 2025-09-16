@@ -1,26 +1,32 @@
 "use client"
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
+import React from 'react'
 
-const data = [
-  { month: "Ene", enrollments: 186 },
-  { month: "Feb", enrollments: 205 },
-  { month: "Mar", enrollments: 287 },
-  { month: "Abr", enrollments: 190 },
-  { month: "May", enrollments: 220 },
-  { month: "Jun", enrollments: 175 },
-  { month: "Jul", enrollments: 90 },
-  { month: "Ago", enrollments: 287 },
-  { month: "Sep", enrollments: 240 },
-  { month: "Oct", enrollments: 190 },
-  { month: "Nov", enrollments: 220 },
-  { month: "Dic", enrollments: 290 },
-]
+type MonthData = { month: string; enrollments: number }
 
-export function EnrollmentChart() {
+export function EnrollmentChart({ data }: { data?: MonthData[] }) {
+  // If no data provided, fall back to a small default to avoid crashes in client
+  const defaultData: MonthData[] = [
+    { month: "Ene", enrollments: 0 },
+    { month: "Feb", enrollments: 0 },
+    { month: "Mar", enrollments: 0 },
+    { month: "Abr", enrollments: 0 },
+    { month: "May", enrollments: 0 },
+    { month: "Jun", enrollments: 0 },
+    { month: "Jul", enrollments: 0 },
+    { month: "Ago", enrollments: 0 },
+    { month: "Sep", enrollments: 0 },
+    { month: "Oct", enrollments: 0 },
+    { month: "Nov", enrollments: 0 },
+    { month: "Dic", enrollments: 0 },
+  ]
+
+  const chartData = data && data.length ? data : defaultData
+
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data}>
+      <BarChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
         <XAxis 
             dataKey="month" 
@@ -35,8 +41,7 @@ export function EnrollmentChart() {
             tickLine={false} 
             axisLine={false} 
             tickFormatter={(value) => `${value}`}
-            domain={[0, 300]}
-            ticks={[0, 75, 150, 225, 300]}
+            domain={[0, 'dataMax']}
         />
         <Tooltip
             cursor={{ fill: 'hsl(var(--secondary))' }}
