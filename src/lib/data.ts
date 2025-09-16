@@ -151,6 +151,9 @@ export async function getStudentsByCourse(courseId: string) {
       )
     `)
     .eq('curso_id', courseId)
+    // Try to order at the DB level by related user fields, then by enrollment date.
+    // Note: ordering on related tables may depend on PostgREST/Supabase behavior; we also apply
+    // a JS-side stable sort below as a fallback to ensure the required composite ordering.
     .order('apellidos', { foreignTable: 'usuarios', ascending: true })
     .order('nombres', { foreignTable: 'usuarios', ascending: true })
     .order('fecha_matricula', { ascending: true });
@@ -160,14 +163,40 @@ export async function getStudentsByCourse(courseId: string) {
     return [];
   }
 
-  return data.map(student => {
+  // Normalize and map results, but first apply a JS-side stable sort to guarantee ordering by:
+  // 1) apellido asc, 2) nombres asc, 3) fecha_matricula asc. We intentionally do not filter out
+  // withdrawn students here (no distinction between retirados/matriculados) as requested.
+  const normalized = (data as any[]).map(student => {
     const usuario = Array.isArray(student.usuarios) ? student.usuarios[0] : student.usuarios;
     return {
+      raw: student,
       id: student.id,
       registration_number: student.nro_registro,
       enrollment_date: student.fecha_matricula,
       withdrawal_date: student.fecha_retiro,
+      apellido: (usuario?.apellidos ?? '').toString(),
+      nombres: (usuario?.nombres ?? '').toString(),
       name: `${usuario?.apellidos ?? ''} ${usuario?.nombres ?? ''}`.trim(),
     };
   });
+
+  // stable sort: compare apellido, then nombres, then enrollment_date (fecha_matricula)
+  normalized.sort((a, b) => {
+    const ap = a.apellido.localeCompare(b.apellido, 'es', { sensitivity: 'base' });
+    if (ap !== 0) return ap;
+    const nm = a.nombres.localeCompare(b.nombres, 'es', { sensitivity: 'base' });
+    if (nm !== 0) return nm;
+    // Compare dates safely: null/undefined move before/after? We'll treat null/undefined as larger (after)
+    const da = a.enrollment_date ? new Date(a.enrollment_date).getTime() : Number.POSITIVE_INFINITY;
+    const db = b.enrollment_date ? new Date(b.enrollment_date).getTime() : Number.POSITIVE_INFINITY;
+    return da - db;
+  });
+
+  return normalized.map(item => ({
+    id: item.id,
+    registration_number: item.registration_number,
+    enrollment_date: item.enrollment_date,
+    withdrawal_date: item.withdrawal_date,
+    name: item.name,
+  }));
 }
