@@ -101,6 +101,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     const itemsPerPage = 5;
 
     const [newStudent, setNewStudent] = React.useState(initialNewStudentState);
+    const [editingStudentId, setEditingStudentId] = React.useState<string | null>(null);
   const [sexos, setSexos] = React.useState<Array<{id: string, nombre: string}>>([]);
   const [cursos, setCursos] = React.useState<Array<Record<string, any>>>([]);
   const rutRef = React.useRef<HTMLInputElement | null>(null);
@@ -127,25 +128,29 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
      React.useEffect(() => {
         if (!isDialogOpen) {
             setNewStudent(initialNewStudentState);
+            setEditingStudentId(null);
+            return;
         }
-    else {
-      // when opening the dialog fetch next registry and options
-      fetchLastRegistry();
-      (async () => {
-        try {
-          const [sexRes, cursosRes] = await Promise.all([fetch('/api/sexos'), fetch('/api/cursos')])
-          const sexJson = await sexRes.json();
-          const cursosJson = await cursosRes.json();
-          setSexos(Array.isArray(sexJson.data) ? sexJson.data : [])
-          setCursos(Array.isArray(cursosJson.data) ? cursosJson.data : [])
-        } catch (e) {
-          // ignore
+
+        // when opening the dialog: if we're creating (not editing) fetch next registry
+        if (!editingStudentId) {
+          fetchLastRegistry();
         }
-      })()
-      // focus the RUT input after the dialog opens and elements mount
-      requestAnimationFrame(() => rutRef.current?.focus());
-    }
-    }, [isDialogOpen]);
+
+        (async () => {
+          try {
+            const [sexRes, cursosRes] = await Promise.all([fetch('/api/sexos'), fetch('/api/cursos')])
+            const sexJson = await sexRes.json();
+            const cursosJson = await cursosRes.json();
+            setSexos(Array.isArray(sexJson.data) ? sexJson.data : [])
+            setCursos(Array.isArray(cursosJson.data) ? cursosJson.data : [])
+          } catch (e) {
+            // ignore
+          }
+        })()
+        // focus the RUT input after the dialog opens and elements mount
+        requestAnimationFrame(() => rutRef.current?.focus());
+    }, [isDialogOpen, editingStudentId]);
 
   const fetchLastRegistry = async () => {
     try {
@@ -175,6 +180,37 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
       } catch (e) { /* ignore */ }
     }
 
+    const startEditingStudent = async (id: string) => {
+      try {
+        const res = await fetch(`/api/students/${id}`)
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'Error fetching student')
+        const d = json.data
+        const u = d.usuarios
+        setNewStudent(prev => ({
+          ...prev,
+          registration_number: d.nro_registro ?? prev.registration_number,
+          rut: u?.rut ?? prev.rut,
+          nombres: u?.nombres ?? prev.nombres,
+          apellidos: u?.apellidos ?? prev.apellidos,
+          email: u?.email ?? prev.email,
+          phone: u?.telefono ?? prev.phone,
+          address: u?.direccion ?? prev.address,
+          enrollment_date: d.fecha_matricula ?? prev.enrollment_date,
+          curso: d.curso_id ?? prev.curso,
+          // parse fecha_nacimiento without timezone shift
+          birthYear: ((): string => { const m = String(u?.fecha_nacimiento).match(/(\d{4})-(\d{2})-(\d{2})/); return m ? m[1] : prev.birthYear })(),
+          birthMonth: ((): string => { const m = String(u?.fecha_nacimiento).match(/(\d{4})-(\d{2})-(\d{2})/); return m ? String(Number(m[2])) : prev.birthMonth })(),
+          birthDay: ((): string => { const m = String(u?.fecha_nacimiento).match(/(\d{4})-(\d{2})-(\d{2})/); return m ? String(Number(m[3])) : prev.birthDay })(),
+          sexo: u?.sexo_id ?? prev.sexo
+        }))
+        setEditingStudentId(id)
+        setIsDialogOpen(true)
+      } catch (e: any) {
+        toast({ title: 'Error', description: e.message || 'No se pudo cargar el estudiante.' })
+      }
+    }
+
     const handleCreateStudent = async () => {
     if (!newStudent.nombres.trim() || !newStudent.apellidos.trim()) {
       toast({ title: 'Campos requeridos', description: 'Nombres y apellidos son obligatorios.'});
@@ -195,6 +231,18 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         fecha_matricula: newStudent.enrollment_date
       };
 
+      if (editingStudentId) {
+        // update
+        const res = await fetch('/api/students/update', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingStudentId, ...payload }) })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'Error updating student')
+        toast({ title: 'Estudiante Actualizado', description: `${newStudent.nombres} ha sido actualizado.` })
+        await fetchList()
+        setIsDialogOpen(false)
+        setEditingStudentId(null)
+        return
+      }
+
       const res = await fetch('/api/students/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,9 +252,9 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
       if (!res.ok) throw new Error(json.error || 'Error creating student');
 
       toast({ title: 'Estudiante Matriculado', description: `${newStudent.nombres} ha sido añadido exitosamente.` });
-            // refresh list from server (server returns ordered list)
-            await fetchList()
-            setIsDialogOpen(false);
+      // refresh list from server (server returns ordered list)
+      await fetchList()
+      setIsDialogOpen(false);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message || 'No se pudo matricular el estudiante.' });
     }
@@ -313,16 +361,16 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           </DialogTrigger>
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
-              <DialogTitle>Matricular Estudiante</DialogTitle>
+              <DialogTitle>{editingStudentId ? 'Editar Estudiante' : 'Matricular Estudiante'}</DialogTitle>
               <DialogDescription>
-                Rellene los detalles para matricular un nuevo estudiante.
+                {editingStudentId ? 'Modifique los detalles del estudiante.' : 'Rellene los detalles para matricular un nuevo estudiante.'}
               </DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
                 <div className="space-y-4">
                     <div className="grid gap-2">
                         <Label htmlFor="registration-number">Número de Registro</Label>
-                        <Input id="registration-number" value={newStudent.registration_number} onChange={handleInputChange} />
+                        <Input id="registration-number" value={newStudent.registration_number} onChange={handleInputChange} readOnly={!!editingStudentId} />
                     </div>
                      <div className="grid gap-2">
                         <Label htmlFor="rut">RUT</Label>
@@ -342,9 +390,19 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                     email: u.email || prev.email,
                     phone: u.telefono || prev.phone,
                     address: u.direccion || prev.address,
-                    birthYear: u.fecha_nacimiento ? String(new Date(u.fecha_nacimiento).getFullYear()) : prev.birthYear,
-                    birthMonth: u.fecha_nacimiento ? String(new Date(u.fecha_nacimiento).getMonth() + 1) : prev.birthMonth,
-                    birthDay: u.fecha_nacimiento ? String(new Date(u.fecha_nacimiento).getDate()) : prev.birthDay,
+                    // fecha_nacimiento may be stored as YYYY-MM-DD; parse without using Date to avoid timezone shifts
+                    birthYear: ((): string => {
+                      const m = String(u.fecha_nacimiento).match(/(\d{4})-(\d{2})-(\d{2})/)
+                      return m ? m[1] : prev.birthYear
+                    })(),
+                    birthMonth: ((): string => {
+                      const m = String(u.fecha_nacimiento).match(/(\d{4})-(\d{2})-(\d{2})/)
+                      return m ? String(Number(m[2])) : prev.birthMonth
+                    })(),
+                    birthDay: ((): string => {
+                      const m = String(u.fecha_nacimiento).match(/(\d{4})-(\d{2})-(\d{2})/)
+                      return m ? String(Number(m[3])) : prev.birthDay
+                    })(),
                     sexo: u.sexo_id || prev.sexo
                   }))
                   toast({ title: 'Datos precargados', description: 'Se cargaron los datos desde la base de usuarios.' })
@@ -448,7 +506,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                 </div>
             </div>
             <DialogFooter>
-              <Button type="submit" onClick={handleCreateStudent}>Matricular Estudiante</Button>
+              <Button type="submit" onClick={handleCreateStudent}>{editingStudentId ? 'Actualizar Estudiante' : 'Matricular Estudiante'}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -519,7 +577,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem>Editar</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => startEditingStudent(student.id)}>Editar</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                     <Trash2 className="mr-2 h-4 w-4" />
@@ -564,7 +622,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem>Editar</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => startEditingStudent(student.id)}>Editar</DropdownMenuItem>
                       <AlertDialogTrigger asChild>
                         <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                           <Trash2 className="mr-2 h-4 w-4" />
