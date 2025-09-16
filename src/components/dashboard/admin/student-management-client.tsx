@@ -37,6 +37,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Student } from "@/lib/types";
@@ -49,6 +50,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge"
+import { parseISO, format as formatDateFn } from 'date-fns'
 
 type SortKey = keyof Student;
 
@@ -272,6 +275,45 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         }
     };
 
+        // --- Retiro (withdraw) flow ---
+        const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
+        const [withdrawStudentId, setWithdrawStudentId] = React.useState<string | null>(null);
+        const [withdrawDate, setWithdrawDate] = React.useState<string>('');
+        const [withdrawReason, setWithdrawReason] = React.useState<string>('');
+
+        const openWithdrawFor = (id: string) => {
+          setWithdrawStudentId(id);
+          setWithdrawDate('');
+          setWithdrawReason('');
+          setWithdrawDialogOpen(true);
+        }
+
+        const submitWithdraw = async () => {
+          if (!withdrawStudentId) return;
+          if (!withdrawDate) {
+            toast({ title: 'Fecha requerida', description: 'Por favor ingrese la fecha de retiro.' })
+            return;
+          }
+          try {
+            // optimistic update: mark student as retired locally so UI updates immediately
+            setStudents(prev => prev.map(s => s.id === withdrawStudentId ? { ...s, fecha_retiro: withdrawDate, motivo_retiro: withdrawReason } : s));
+            const res = await fetch('/api/students/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: withdrawStudentId, fecha_retiro: withdrawDate, motivo_retiro: withdrawReason }) })
+            const json = await res.json();
+            if (!res.ok) {
+              // rollback optimistic update on error
+              setStudents(prev => prev.map(s => s.id === withdrawStudentId ? { ...s, fecha_retiro: undefined, motivo_retiro: undefined } : s));
+              throw new Error(json.error || 'Error al registrar retiro')
+            }
+            toast({ title: 'Estudiante Retirado', description: 'Se registró la fecha de retiro correctamente.' })
+            setWithdrawDialogOpen(false);
+            setWithdrawStudentId(null);
+            // refresh list to ensure server-state consistency
+            await fetchList();
+          } catch (e: any) {
+            toast({ title: 'Error', description: e.message || 'No se pudo retirar el estudiante.' })
+          }
+        }
+
     const filteredStudents = students.filter(student =>
         student.nombres.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -329,6 +371,17 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         }
         return <ArrowUpDown className="ml-2 h-4 w-4" />;
     };
+
+  const formatDate = (d?: string | null) => {
+    if (!d) return '-'
+    try {
+      // parseISO can throw if invalid; format to dd/MM/yyyy
+      const dt = parseISO(d)
+      return formatDateFn(dt, 'dd/MM/yyyy')
+    } catch (e) {
+      return d
+    }
+  }
     
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
@@ -510,6 +563,28 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Retirar Estudiante</DialogTitle>
+              <DialogDescription>Registre la fecha de retiro y el motivo. Esto marcará al estudiante como retirado.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-2">
+                <Label htmlFor="withdraw-date">Fecha de Retiro</Label>
+                <Input id="withdraw-date" type="date" value={withdrawDate} onChange={(e) => setWithdrawDate(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="withdraw-reason">Motivo de Retiro</Label>
+                <Textarea id="withdraw-reason" value={withdrawReason} onChange={(e) => setWithdrawReason(e.target.value)} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setWithdrawDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={submitWithdraw}>Registrar Retiro</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       <div className="border rounded-lg mt-4 hidden md:block">
         <Table>
@@ -552,6 +627,12 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                 </Button>
               </TableHead>
               <TableHead>
+                <Button variant="ghost" onClick={() => requestSort('fecha_retiro' as keyof Student)}>
+                  Fecha de Retiro
+                  {/* No sort indicator by default for optional field */}
+                </Button>
+              </TableHead>
+              <TableHead>
                 <span className="sr-only">Acciones</span>
               </TableHead>
             </TableRow>
@@ -561,10 +642,14 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
               <TableRow key={student.id}>
                 <TableCell className="hidden md:table-cell">{student.registration_number}</TableCell>
                 <TableCell className="hidden md:table-cell">{student.rut}</TableCell>
-                <TableCell className="font-medium">{`${student.apellidos} ${student.nombres}`}</TableCell>
+                <TableCell className="font-medium flex items-center gap-2">
+                  <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
+                  {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
+                </TableCell>
                 <TableCell className="hidden lg:table-cell">{student.sexo}</TableCell>
                 <TableCell>{student.curso}</TableCell>
-                <TableCell>{student.enrollment_date}</TableCell>
+                <TableCell>{formatDate(student.enrollment_date)}</TableCell>
+                <TableCell>{formatDate(student.fecha_retiro)}</TableCell>
                 <TableCell>
                   <div className="flex justify-end">
                     <AlertDialog>
@@ -578,6 +663,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                             <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuItem onSelect={() => startEditingStudent(student.id)}>Editar</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openWithdrawFor(student.id)} className="text-amber-600">Retirar</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                     <Trash2 className="mr-2 h-4 w-4" />
@@ -611,7 +697,10 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <Card key={student.id}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span className="text-base">{`${student.apellidos} ${student.nombres}`}</span>
+                <span className="text-base flex items-center gap-2">
+                  <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
+                  {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
+                </span>
                 <AlertDialog>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -623,6 +712,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                       <DropdownMenuItem onSelect={() => startEditingStudent(student.id)}>Editar</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openWithdrawFor(student.id)} className="text-amber-600">Retirar</DropdownMenuItem>
                       <AlertDialogTrigger asChild>
                         <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                           <Trash2 className="mr-2 h-4 w-4" />
@@ -650,7 +740,8 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
               <p><span className="font-semibold">N° de Registro:</span> {student.registration_number}</p>
               <p><span className="font-semibold">RUT:</span> {student.rut}</p>
               <p><span className="font-semibold">Curso:</span> {student.curso}</p>
-              <p><span className="font-semibold">Fecha de Matrícula:</span> {student.enrollment_date}</p>
+              <p><span className="font-semibold">Fecha de Matrícula:</span> {formatDate(student.enrollment_date)}</p>
+              <p><span className="font-semibold">Fecha de Retiro:</span> {formatDate(student.fecha_retiro)}</p>
             </CardContent>
           </Card>
         ))}

@@ -38,6 +38,8 @@ export async function getStudents(): Promise<Student[]> {
     .from('estudiantes_detalles')
     .select(`
       id,
+      fecha_retiro,
+      motivo_retiro,
       nro_registro,
       fecha_matricula,
       usuarios (
@@ -77,6 +79,9 @@ export async function getStudents(): Promise<Student[]> {
 
     return {
       id: student.id,
+      // include retiro fields if present
+      fecha_retiro: student.fecha_retiro ?? undefined,
+      motivo_retiro: student.motivo_retiro ?? undefined,
       registration_number: student.nro_registro,
       rut: usuariosRel?.rut ?? 'N/A',
       nombres: usuariosRel?.nombres ?? 'N/A',

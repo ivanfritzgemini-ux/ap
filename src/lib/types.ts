@@ -29,4 +29,6 @@ export interface Student {
   sexo: string;
   email: string;
   enrollment_date: string;
+  fecha_retiro?: string;
+  motivo_retiro?: string;
 }
