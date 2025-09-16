@@ -38,6 +38,8 @@ export async function getStudents(): Promise<Student[]> {
     .from('estudiantes_detalles')
     .select(`
       id,
+      nro_registro,
+      fecha_matricula,
       usuarios (
         rut,
         nombres,
@@ -50,7 +52,10 @@ export async function getStudents(): Promise<Student[]> {
         letra,
         tipo_educacion:tipo_educacion_id(nombre)
       )
-    `);
+    `)
+    .order('nro_registro', { ascending: true })
+    ;
+
 
   if (error) {
     console.error('Error fetching students:', error);
@@ -58,20 +63,30 @@ export async function getStudents(): Promise<Student[]> {
   }
 
   return data.map((student) => {
-    const tipoEducacion = student.cursos?.tipo_educacion?.nombre ?? '';
+    // related fields may be returned as arrays (due to PostgREST relation handling)
+    const usuariosRel = Array.isArray(student.usuarios) ? student.usuarios[0] : student.usuarios;
+    const cursosRel = Array.isArray(student.cursos) ? student.cursos[0] : student.cursos;
+
+    // tipo_educacion may be an array; normalize to string
+    const tipoObj = Array.isArray(cursosRel?.tipo_educacion) ? cursosRel.tipo_educacion[0] : cursosRel?.tipo_educacion
+    const tipoEducacion = tipoObj?.nombre ?? '';
     let nombreAbreviado = tipoEducacion;
-    if (tipoEducacion.includes('Media')) {
+    if (typeof tipoEducacion === 'string' && tipoEducacion.includes('Media')) {
       nombreAbreviado = 'Medio';
     }
 
     return {
       id: student.id,
-      rut: student.usuarios?.rut ?? 'N/A',
-      nombres: student.usuarios?.nombres ?? 'N/A',
-      apellidos: student.usuarios?.apellidos ?? 'N/A',
-      email: student.usuarios?.email ?? 'N/A',
-      sexo: student.usuarios?.sexo?.nombre ?? 'N/A',
-      curso: student.cursos ? `${student.cursos.nivel}º ${nombreAbreviado} ${student.cursos.letra}` : 'Sin curso',
+      registration_number: student.nro_registro,
+      rut: usuariosRel?.rut ?? 'N/A',
+      nombres: usuariosRel?.nombres ?? 'N/A',
+      apellidos: usuariosRel?.apellidos ?? 'N/A',
+      email: usuariosRel?.email ?? 'N/A',
+  // sexo relation may be an array as well
+  // @ts-ignore - dynamic relation shape from Supabase
+  sexo: (Array.isArray(usuariosRel?.sexo) ? usuariosRel.sexo[0]?.nombre : usuariosRel?.sexo?.nombre) ?? 'N/A',
+      curso: cursosRel ? `${cursosRel.nivel}º ${nombreAbreviado} ${cursosRel.letra}` : 'Sin curso',
+      enrollment_date: student.fecha_matricula,
     };
   });
 }

@@ -72,6 +72,7 @@ const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
 const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
 const initialNewStudentState = {
+    registration_number: "",
     rut: "",
     apellidos: "",
     nombres: "",
@@ -79,7 +80,7 @@ const initialNewStudentState = {
     birthDay: "",
     birthMonth: "",
     birthYear: "",
-    enrollmentDate: "",
+    enrollment_date: "",
     curso: "",
     email: "",
     phone: "",
@@ -92,7 +93,7 @@ interface StudentManagementClientProps {
 
 export function StudentManagementClient({ students: initialStudents }: StudentManagementClientProps) {
     const { toast } = useToast();
-    const [students, setStudents] = React.useState<Student[]>(initialStudents);
+  const [students, setStudents] = React.useState<Student[]>(initialStudents);
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
     const [searchTerm, setSearchTerm] = React.useState("");
     const [sortConfig, setSortConfig] = React.useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>(null);
@@ -100,36 +101,135 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     const itemsPerPage = 5;
 
     const [newStudent, setNewStudent] = React.useState(initialNewStudentState);
+  const [sexos, setSexos] = React.useState<Array<{id: string, nombre: string}>>([]);
+  const [cursos, setCursos] = React.useState<Array<Record<string, any>>>([]);
+  const rutRef = React.useRef<HTMLInputElement | null>(null);
+
+  const buildCursoLabel = (c: Record<string, any>) => {
+    if (!c) return ''
+    // prefer tipo_educacion.nombre if available
+    const tipoNombre = c?.tipo_educacion?.nombre ?? c.tipo_educacion ?? null
+    let tipoLabel = tipoNombre ?? null
+    if (typeof tipoLabel === 'string' && tipoLabel.includes('Media')) tipoLabel = 'Medio'
+
+    const nivel = c.nivel ?? c.level ?? c.grade
+    const letra = c.letra ?? c.letter
+
+    if (nivel && tipoLabel && letra) return `${nivel}º ${tipoLabel} ${letra}`
+    if (nivel && letra) return `${nivel}º ${letra}`
+    // fallback to name fields
+    const name = c.nombre_curso ?? c.nombre ?? c.name
+    if (name && nivel && letra) return `${nivel}º ${letra} - ${name}`
+    if (name) return name
+    return String(c.id ?? '')
+  }
 
      React.useEffect(() => {
         if (!isDialogOpen) {
             setNewStudent(initialNewStudentState);
         }
+    else {
+      // when opening the dialog fetch next registry and options
+      fetchLastRegistry();
+      (async () => {
+        try {
+          const [sexRes, cursosRes] = await Promise.all([fetch('/api/sexos'), fetch('/api/cursos')])
+          const sexJson = await sexRes.json();
+          const cursosJson = await cursosRes.json();
+          setSexos(Array.isArray(sexJson.data) ? sexJson.data : [])
+          setCursos(Array.isArray(cursosJson.data) ? cursosJson.data : [])
+        } catch (e) {
+          // ignore
+        }
+      })()
+      // focus the RUT input after the dialog opens and elements mount
+      requestAnimationFrame(() => rutRef.current?.focus());
+    }
     }, [isDialogOpen]);
 
-    const handleCreateStudent = () => {
-        if (!newStudent.nombres.trim()) {
-            return;
+  const fetchLastRegistry = async () => {
+    try {
+      const res = await fetch('/api/students/last-registry');
+      const json = await res.json();
+      const last = json.last;
+      // Try to increment numeric suffix if possible
+      if (last) {
+        const num = parseInt(String(last).replace(/\D/g, ''), 10);
+        if (!isNaN(num)) {
+          setNewStudent(prev => ({ ...prev, registration_number: String(num + 1) }));
+          return;
         }
-        toast({
-            title: "Estudiante Matriculado",
-            description: `${newStudent.nombres} ha sido añadido exitosamente.`,
-        });
-        setIsDialogOpen(false);
-    };
+      }
+      // fallback
+      setNewStudent(prev => ({ ...prev, registration_number: '1' }));
+    } catch (e) {
+      setNewStudent(prev => ({ ...prev, registration_number: '1' }));
+    }
+  }
 
-    const handleDeleteStudent = (studentId: string) => {
-        setStudents(students.filter(student => student.id !== studentId));
-        toast({
-            title: "Estudiante Eliminado",
-            description: "El estudiante ha sido eliminado exitosamente.",
-        });
+    const fetchList = async () => {
+      try {
+        const res = await fetch('/api/students/list')
+        const json = await res.json()
+        if (res.ok && Array.isArray(json.data)) setStudents(json.data)
+      } catch (e) { /* ignore */ }
+    }
+
+    const handleCreateStudent = async () => {
+    if (!newStudent.nombres.trim() || !newStudent.apellidos.trim()) {
+      toast({ title: 'Campos requeridos', description: 'Nombres y apellidos son obligatorios.'});
+      return;
+    }
+    try {
+      const payload = {
+        rut: newStudent.rut,
+        nombres: newStudent.nombres,
+        apellidos: newStudent.apellidos,
+        sexo_id: newStudent.sexo,
+        email: newStudent.email,
+        telefono: newStudent.phone,
+        direccion: newStudent.address,
+        fecha_nacimiento: newStudent.birthYear && newStudent.birthMonth && newStudent.birthDay ? `${newStudent.birthYear}-${String(newStudent.birthMonth).padStart(2,'0')}-${String(newStudent.birthDay).padStart(2,'0')}` : null,
+        curso_id: newStudent.curso,
+        nro_registro: newStudent.registration_number,
+        fecha_matricula: newStudent.enrollment_date
+      };
+
+      const res = await fetch('/api/students/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Error creating student');
+
+      toast({ title: 'Estudiante Matriculado', description: `${newStudent.nombres} ha sido añadido exitosamente.` });
+            // refresh list from server (server returns ordered list)
+            await fetchList()
+            setIsDialogOpen(false);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'No se pudo matricular el estudiante.' });
+    }
+  };
+
+    const handleDeleteStudent = async (studentId: string) => {
+        try {
+          const res = await fetch('/api/students/delete', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ id: studentId }) })
+          const json = await res.json()
+          if (!res.ok) throw new Error(json.error || 'Error deleting')
+          await fetchList()
+          toast({ title: 'Estudiante Eliminado', description: 'El estudiante ha sido eliminado exitosamente.' })
+        } catch (e: any) {
+          toast({ title: 'Error', description: e.message || 'No se pudo eliminar el estudiante.' })
+        }
     };
 
     const filteredStudents = students.filter(student =>
         student.nombres.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.rut?.toLowerCase().includes(searchTerm.toLowerCase())
+        student.registration_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.rut?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.enrollment_date?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const sortedStudents = React.useMemo(() => {
@@ -222,15 +322,41 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                 <div className="space-y-4">
                     <div className="grid gap-2">
                         <Label htmlFor="registration-number">Número de Registro</Label>
-                        <Input id="registration-number" value={newStudent.rut} onChange={handleInputChange} />
+                        <Input id="registration-number" value={newStudent.registration_number} onChange={handleInputChange} />
                     </div>
                      <div className="grid gap-2">
                         <Label htmlFor="rut">RUT</Label>
                         <div className="flex gap-2">
-                        <Input id="rut" value={newStudent.rut} onChange={handleInputChange} />
-                        <Button variant="outline" size="icon" className="shrink-0">
-                            <Search className="h-4 w-4" />
-                        </Button>
+                        <Input id="rut" value={newStudent.rut} onChange={handleInputChange} ref={rutRef} />
+            <Button variant="outline" size="icon" className="shrink-0" onClick={async () => {
+              if (!newStudent.rut) return;
+              try {
+                const res = await fetch(`/api/students/by-rut?rut=${encodeURIComponent(newStudent.rut)}`)
+                const json = await res.json();
+                if (json.user) {
+                  const u = json.user;
+                  setNewStudent(prev => ({
+                    ...prev,
+                    nombres: u.nombres || prev.nombres,
+                    apellidos: u.apellidos || prev.apellidos,
+                    email: u.email || prev.email,
+                    phone: u.telefono || prev.phone,
+                    address: u.direccion || prev.address,
+                    birthYear: u.fecha_nacimiento ? String(new Date(u.fecha_nacimiento).getFullYear()) : prev.birthYear,
+                    birthMonth: u.fecha_nacimiento ? String(new Date(u.fecha_nacimiento).getMonth() + 1) : prev.birthMonth,
+                    birthDay: u.fecha_nacimiento ? String(new Date(u.fecha_nacimiento).getDate()) : prev.birthDay,
+                    sexo: u.sexo_id || prev.sexo
+                  }))
+                  toast({ title: 'Datos precargados', description: 'Se cargaron los datos desde la base de usuarios.' })
+                } else {
+                  toast({ title: 'No encontrado', description: 'No se encontró usuario con ese RUT. Complete los datos manualmente.' })
+                }
+              } catch (e) {
+                toast({ title: 'Error', description: 'No se pudo buscar el RUT.' })
+              }
+            }}>
+              <Search className="h-4 w-4" />
+            </Button>
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -246,15 +372,14 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                      <div className="grid grid-cols-2 gap-4">
                          <div className="grid gap-2">
                             <Label htmlFor="sex">Sexo</Label>
-                             <Select onValueChange={handleSelectChange('sexo')} value={newStudent.sexo}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Seleccione el sexo" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="masculino">Masculino</SelectItem>
-                                    <SelectItem value="femenino">Femenino</SelectItem>
-                                </SelectContent>
-                            </Select>
+              <Select onValueChange={handleSelectChange('sexo')} value={newStudent.sexo}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione el sexo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sexos.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
+                </SelectContent>
+              </Select>
                         </div>
                         <div className="grid gap-2">
                             <Label>Fecha de Nacimiento</Label>
@@ -292,21 +417,18 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                      <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
                             <Label htmlFor="enrollment-date">Fecha de Matrícula</Label>
-                             <Input type="date" id="enrollmentDate" value={newStudent.enrollmentDate} onChange={handleInputChange} />
+                             <Input type="date" id="enrollment_date" value={newStudent.enrollment_date} onChange={handleInputChange} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="course">Curso</Label>
-                            <Select onValueChange={handleSelectChange('curso')} value={newStudent.curso}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Seleccione un curso" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="1a">1° Medio A</SelectItem>
-                                    <SelectItem value="2c">2° Medio C</SelectItem>
-                                    <SelectItem value="3b">3° Medio B - TP</SelectItem>
-                                    <SelectItem value="4a">4° Medio A</SelectItem>
-                                </SelectContent>
-                            </Select>
+              <Select onValueChange={handleSelectChange('curso')} value={newStudent.curso}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione un curso" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cursos.map(c => <SelectItem key={c.id} value={c.id}>{buildCursoLabel(c)}</SelectItem>)}
+                </SelectContent>
+              </Select>
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -336,20 +458,20 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <TableHeader>
             <TableRow>
               <TableHead className="hidden md:table-cell">
+                <Button variant="ghost" onClick={() => requestSort('registration_number')}>
+                    N° de Registro
+                    {getSortIndicator('registration_number')}
+                </Button>
+              </TableHead>
+              <TableHead className="hidden md:table-cell">
                 <Button variant="ghost" onClick={() => requestSort('rut')}>
                     RUT
                     {getSortIndicator('rut')}
                 </Button>
               </TableHead>
               <TableHead>
-                <Button variant="ghost" onClick={() => requestSort('nombres')}>
-                    Nombres
-                    {getSortIndicator('nombres')}
-                </Button>
-              </TableHead>
-              <TableHead>
                 <Button variant="ghost" onClick={() => requestSort('apellidos')}>
-                    Apellidos
+                    Nombre del Alumno
                     {getSortIndicator('apellidos')}
                 </Button>
               </TableHead>
@@ -366,6 +488,12 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                 </Button>
               </TableHead>
               <TableHead>
+                <Button variant="ghost" onClick={() => requestSort('enrollment_date')}>
+                    Fecha de Matrícula
+                    {getSortIndicator('enrollment_date')}
+                </Button>
+              </TableHead>
+              <TableHead>
                 <span className="sr-only">Acciones</span>
               </TableHead>
             </TableRow>
@@ -373,11 +501,12 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <TableBody>
             {currentStudents.map((student) => (
               <TableRow key={student.id}>
+                <TableCell className="hidden md:table-cell">{student.registration_number}</TableCell>
                 <TableCell className="hidden md:table-cell">{student.rut}</TableCell>
-                <TableCell className="font-medium">{student.nombres}</TableCell>
-                <TableCell className="font-medium">{student.apellidos}</TableCell>
+                <TableCell className="font-medium">{`${student.apellidos} ${student.nombres}`}</TableCell>
                 <TableCell className="hidden lg:table-cell">{student.sexo}</TableCell>
                 <TableCell>{student.curso}</TableCell>
+                <TableCell>{student.enrollment_date}</TableCell>
                 <TableCell>
                   <div className="flex justify-end">
                     <AlertDialog>
@@ -424,7 +553,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <Card key={student.id}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span className="text-base">{`${student.nombres} ${student.apellidos}`}</span>
+                <span className="text-base">{`${student.apellidos} ${student.nombres}`}</span>
                 <AlertDialog>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -460,8 +589,10 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
+              <p><span className="font-semibold">N° de Registro:</span> {student.registration_number}</p>
               <p><span className="font-semibold">RUT:</span> {student.rut}</p>
               <p><span className="font-semibold">Curso:</span> {student.curso}</p>
+              <p><span className="font-semibold">Fecha de Matrícula:</span> {student.enrollment_date}</p>
             </CardContent>
           </Card>
         ))}

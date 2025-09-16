@@ -21,10 +21,12 @@ export interface Course {
 
 export interface Student {
   id: string;
+  registration_number: string;
   rut: string;
   nombres: string;
   apellidos: string;
   curso: string;
   sexo: string;
   email: string;
+  enrollment_date: string;
 }
