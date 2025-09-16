@@ -95,3 +95,79 @@ export async function getStudents(): Promise<Student[]> {
     };
   });
 }
+
+export async function getCourseDetails(id: string) {
+  const supabase = await createServerClient();
+  const { data: cursosData, error: cursosErr } = await supabase
+    .from('cursos')
+    .select(`
+      id,
+      nivel,
+      letra,
+      profesor_jefe:profesor_jefe_id(id, usuarios ( id, nombres, apellidos ))
+    `)
+    .eq('id', id)
+    .single();
+
+  if (cursosErr) {
+    console.error('Error fetching course details:', cursosErr);
+    return null;
+  }
+
+  const c = cursosData as any;
+  const nombre_curso = [c.nivel ?? '', c.letra ?? ''].filter(Boolean).join(' ').trim();
+
+  let profesorJefeName: string | null = null;
+  // Safer data access
+  if (c.profesor_jefe) {
+    const profRel = Array.isArray(c.profesor_jefe) ? c.profesor_jefe[0] : c.profesor_jefe;
+    if (profRel && profRel.usuarios) {
+        const usuario = Array.isArray(profRel.usuarios) ? profRel.usuarios[0] : profRel.usuarios;
+        if (usuario) {
+            profesorJefeName = `${usuario.apellidos ?? ''} ${usuario.nombres ?? ''}`.trim() || null;
+        }
+    }
+  }
+
+  return {
+    id: c.id,
+    nombre_curso,
+    profesor_jefe: profesorJefeName,
+  };
+}
+
+export async function getStudentsByCourse(courseId: string) {
+  const supabase = await createServerClient();
+  const { data, error } = await supabase
+    .from('estudiantes_detalles')
+    .select(`
+      id,
+      nro_registro,
+      fecha_matricula,
+      fecha_retiro,
+      usuarios (
+        nombres,
+        apellidos
+      )
+    `)
+    .eq('curso_id', courseId)
+    .order('apellidos', { foreignTable: 'usuarios', ascending: true })
+    .order('nombres', { foreignTable: 'usuarios', ascending: true })
+    .order('fecha_matricula', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching students for course:', error);
+    return [];
+  }
+
+  return data.map(student => {
+    const usuario = Array.isArray(student.usuarios) ? student.usuarios[0] : student.usuarios;
+    return {
+      id: student.id,
+      registration_number: student.nro_registro,
+      enrollment_date: student.fecha_matricula,
+      withdrawal_date: student.fecha_retiro,
+      name: `${usuario?.apellidos ?? ''} ${usuario?.nombres ?? ''}`.trim(),
+    };
+  });
+}

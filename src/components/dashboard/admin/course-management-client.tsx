@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react"
+import Link from "next/link"
 import {
   Table,
   TableBody,
@@ -16,7 +17,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -424,6 +425,12 @@ export function CourseManagementClient() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                            <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/admin/courses/${course.id}/details`} className="flex items-center cursor-pointer">
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Ver Ficha
+                                </Link>
+                            </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => startEditingCourse(course.id)}>Editar</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
@@ -469,6 +476,12 @@ export function CourseManagementClient() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                        <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/admin/courses/${course.id}/details`} className="flex items-center cursor-pointer">
+                                <FileText className="mr-2 h-4 w-4" />
+                                Ver Ficha
+                            </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => startEditingCourse(course.id)}>Editar</DropdownMenuItem>
                         <AlertDialogTrigger asChild>
                             <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
