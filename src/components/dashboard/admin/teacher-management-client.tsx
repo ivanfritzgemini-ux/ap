@@ -79,6 +79,7 @@ export function TeacherManagementClient() {
     const itemsPerPage = 5;
 
   const [newTeacher, setNewTeacher] = React.useState(initialNewTeacherState);
+  const [editingTeacherId, setEditingTeacherId] = React.useState<string | null>(null);
   const [isSearching, setIsSearching] = React.useState(false);
   const [sexos, setSexos] = React.useState<Array<{id:string,nombre:string}>>([]);
   const rutRef = React.useRef<HTMLInputElement | null>(null);
@@ -151,12 +152,22 @@ export function TeacherManagementClient() {
         especialidad: newTeacher.especialidad
       }
 
-      const res = await fetch('/api/teachers/create', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Error creating teacher')
-
-      toast({ title: 'Profesor Añadido', description: `${newTeacher.nombres} ${newTeacher.apellidos} ha sido añadido correctamente.` })
-      setIsDialogOpen(false)
+      if (editingTeacherId) {
+        // update
+        const res = await fetch('/api/teachers/update', { method: 'PUT', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ id: editingTeacherId, ...payload }) })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.error || 'Error updating teacher')
+        toast({ title: 'Profesor Actualizado', description: `${newTeacher.nombres} ${newTeacher.apellidos} ha sido actualizado.` })
+        setIsDialogOpen(false)
+        setEditingTeacherId(null)
+      } else {
+        // create
+        const res = await fetch('/api/teachers/create', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.error || 'Error creating teacher')
+        toast({ title: 'Profesor Añadido', description: `${newTeacher.nombres} ${newTeacher.apellidos} ha sido añadido correctamente.` })
+        setIsDialogOpen(false)
+      }
 
       // refresh list
       try {
@@ -177,9 +188,58 @@ export function TeacherManagementClient() {
       }
 
     } catch (err: any) {
-      toast({ title: 'Error', description: err.message || 'No se pudo crear el profesor.' })
+      toast({ title: 'Error', description: err.message || 'No se pudo crear/actualizar el profesor.' })
     }
     };
+
+    const startEditingTeacher = async (id: string) => {
+      try {
+        const res = await fetch(`/api/teachers?id=${encodeURIComponent(id)}`)
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.error || 'Error fetching teacher')
+
+        // Normalize response: API may return { data: [...] } or { data: {...} } or the object directly
+        let t: any = json?.data ?? json
+        if (Array.isArray(t)) t = t[0] ?? null
+        if (!t) throw new Error('Profesor no encontrado')
+
+        // teacher_details may also come as an array from Supabase relations
+        const rawDetails = t.teacher_details ?? null
+        const details = Array.isArray(rawDetails) ? rawDetails[0] : rawDetails
+
+        // normalize and fill form fields
+        setNewTeacher(prev => ({
+          ...prev,
+          rut: t.rut || '',
+          apellidos: t.apellidos || '',
+          nombres: t.nombres || '',
+          sexo_id: t.sexo_id ?? t.sexo ?? '',
+          fecha_nacimiento: t.fecha_nacimiento ?? '',
+          fecha_contrato: details?.fecha_contrato ?? '',
+          numero_horas: details?.numero_horas ?? '',
+          especialidad: details?.especialidad ?? '',
+          email: t.email ?? '',
+          telefono: t.telefono ?? '',
+          direccion: t.direccion ?? ''
+        }))
+        setEditingTeacherId(id)
+        setIsDialogOpen(true)
+      } catch (e: any) {
+        toast({ title: 'Error', description: e.message || 'No se pudo cargar el profesor.' })
+      }
+    }
+
+    const deleteTeacher = async (id: string) => {
+      try {
+        const res = await fetch('/api/teachers/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.error || 'Error deleting teacher')
+        setTeachers(prev => prev.filter(t => t.id !== id))
+        toast({ title: 'Profesor Eliminado', description: 'El profesor ha sido eliminado correctamente.' })
+      } catch (e: any) {
+        toast({ title: 'Error', description: e.message || 'No se pudo eliminar el profesor.' })
+      }
+    }
 
     const handleDeleteTeacher = (teacherId: string) => {
         setTeachers(teachers.filter(teacher => teacher.id !== teacherId));
@@ -303,9 +363,9 @@ export function TeacherManagementClient() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
-              <DialogTitle>Añadir Nuevo Profesor</DialogTitle>
+              <DialogTitle>{editingTeacherId ? 'Editar Profesor' : 'Añadir Nuevo Profesor'}</DialogTitle>
               <DialogDescription>
-                Rellene los detalles para crear una nueva cuenta de profesor.
+                {editingTeacherId ? 'Modifique los detalles del profesor.' : 'Rellene los detalles para crear una nueva cuenta de profesor.'}
               </DialogDescription>
             </DialogHeader>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
@@ -385,7 +445,7 @@ export function TeacherManagementClient() {
         </div>
       </div>
             <DialogFooter>
-              <Button type="submit" onClick={handleCreateTeacher}>Crear Profesor</Button>
+              <Button type="submit" onClick={handleCreateTeacher}>{editingTeacherId ? 'Actualizar Profesor' : 'Crear Profesor'}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -433,7 +493,7 @@ export function TeacherManagementClient() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem>Editar</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => startEditingTeacher(user.id)}>Editar</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                     <Trash2 className="mr-2 h-4 w-4" />
@@ -451,7 +511,7 @@ export function TeacherManagementClient() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteTeacher(user.id)}>Continuar</AlertDialogAction>
+                            <AlertDialogAction onClick={() => deleteTeacher(user.id)}>Continuar</AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
@@ -478,7 +538,7 @@ export function TeacherManagementClient() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => startEditingTeacher(teacher.id)}>Editar</DropdownMenuItem>
                         <AlertDialogTrigger asChild>
                             <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                 <Trash2 className="mr-2 h-4 w-4" />
@@ -496,7 +556,7 @@ export function TeacherManagementClient() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteTeacher(teacher.id)}>Continuar</AlertDialogAction>
+                        <AlertDialogAction onClick={() => deleteTeacher(teacher.id)}>Continuar</AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>

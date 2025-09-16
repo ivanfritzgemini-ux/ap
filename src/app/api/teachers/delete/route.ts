@@ -7,8 +7,18 @@ export async function POST(req: Request) {
 
   const supabase = createServiceRoleClient()
   try {
-    const { error } = await supabase.from('usuarios').delete().eq('id', id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // Delete teacher details first to avoid FK constraint violation
+    const { error: detailsErr } = await supabase.from('profesores_detalles').delete().eq('id', id)
+    if (detailsErr) {
+      console.error('[api/teachers/delete] failed deleting profesores_detalles:', detailsErr)
+      return NextResponse.json({ error: detailsErr.message }, { status: 500 })
+    }
+
+    const { error: userErr } = await supabase.from('usuarios').delete().eq('id', id)
+    if (userErr) {
+      console.error('[api/teachers/delete] failed deleting usuario:', userErr)
+      return NextResponse.json({ error: userErr.message }, { status: 500 })
+    }
 
     if (removeAuth) {
       try {
@@ -21,6 +31,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
+    console.error('[api/teachers/delete] unexpected error:', err)
     return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 })
   }
 }

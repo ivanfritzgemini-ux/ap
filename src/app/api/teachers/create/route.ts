@@ -78,8 +78,18 @@ export async function POST(req: Request) {
         if (rolesErr) {
           console.error('[api/teachers/create] error fetching roles:', rolesErr)
         } else if (Array.isArray(rolesData) && rolesData.length > 0) {
-          const found = rolesData.find((r: any) => String(r.nombre_rol).toLowerCase().includes('prof') || String(r.nombre_rol).toLowerCase().includes('teacher'))
-          defaultRolId = found?.id ?? rolesData[0].id
+          // Prefer an exact match for 'Docente' (case-insensitive)
+          const exact = rolesData.find((r: any) => String(r.nombre_rol).trim().toLowerCase() === 'docente')
+          if (exact && exact.id) {
+            defaultRolId = exact.id
+          } else {
+            // fallback to heuristic: contains 'prof' or 'teacher'
+            const found = rolesData.find((r: any) => {
+              const n = String(r.nombre_rol).toLowerCase()
+              return n.includes('prof') || n.includes('teacher')
+            })
+            defaultRolId = found?.id ?? rolesData[0].id
+          }
         }
       } catch (e) {
         console.error('[api/teachers/create] unexpected error fetching roles:', e)
