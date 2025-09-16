@@ -4,34 +4,84 @@ import { createServerClient } from '@/lib/supabase/server'
 export async function GET() {
   try {
     const supabase = await createServerClient()
-    // Select all columns and include the related tipo_educacion.nombre to be tolerant
-    // try ordering by nivel; if column doesn't exist, retry without ordering
-    let data: any = null
-    let error: any = null
-    try {
-      const res = await supabase
-        .from('cursos')
-        .select('*, tipo_educacion:tipo_educacion_id(nombre)')
-        .order('nivel')
-      data = res.data
-      error = res.error
-      if (error && error.code === '42703') {
-        console.warn('[api/cursos] nivel column not found, retrying without order')
-        const res2 = await supabase
-          .from('cursos')
-          .select('*, tipo_educacion:tipo_educacion_id(nombre)')
-        data = res2.data
-        error = res2.error
+
+    // 1) Fetch cursos including tipo_educacion and profesor_jefe -> usuarios (nombres, apellidos)
+    const { data: cursosData, error: cursosErr } = await supabase
+      .from('cursos')
+      .select(`
+        id,
+        nivel,
+        letra,
+        tipo_educacion:tipo_educacion_id(nombre),
+        profesor_jefe:profesor_jefe_id(usuarios ( id, nombres, apellidos ))
+      `)
+      .order('nivel', { ascending: true })
+
+    if (cursosErr) {
+      console.error('[api/cursos] supabase error fetching cursos:', cursosErr)
+      return NextResponse.json({ error: cursosErr.message }, { status: 500 })
+    }
+
+    const cursos = Array.isArray(cursosData) ? cursosData : []
+
+    // 2) Fetch student counts grouped by curso_id (only active students: fecha_retiro IS NULL)
+    const { data: studentsRows, error: studentsErr } = await supabase
+      .from('estudiantes_detalles')
+      .select('curso_id', { count: 'exact', head: false })
+      .is('fecha_retiro', null)
+
+    if (studentsErr) {
+      console.error('[api/cursos] supabase error fetching estudiantes_detalles counts:', studentsErr)
+      // continue with zero counts if counting fails
+    }
+
+    // Build a simple map of counts by curso_id
+    const countsMap: Record<string, number> = {}
+    if (Array.isArray(studentsRows)) {
+      for (const row of studentsRows as any[]) {
+        const key = String(row.curso_id)
+        countsMap[key] = (countsMap[key] || 0) + 1
       }
-    } catch (e: any) {
-      console.error('[api/cursos] unexpected supabase error:', e)
-      return NextResponse.json({ error: e.message || 'Supabase error' }, { status: 500 })
     }
-    if (error) {
-      console.error('[api/cursos] supabase error:', error)
-      return NextResponse.json({ error: error.message, details: error }, { status: 500 })
-    }
-    return NextResponse.json({ data })
+
+    // 3) Normalize and return desired shape
+    const normalized = cursos.map((c: any) => {
+      const id = c.id
+      const nivel = c.nivel ?? ''
+      const letra = c.letra ?? ''
+      const nombre_curso = [nivel, letra].filter(Boolean).join(' ').trim()
+
+      // tipo_educacion may come as array or object
+      const tipo = Array.isArray(c.tipo_educacion) ? c.tipo_educacion[0]?.nombre : c.tipo_educacion?.nombre
+
+      // profesor_jefe relation may be array or object; its usuarios subrelation contains names
+      let profesorJefeName: string | null = null
+      try {
+        const profRel = c.profesor_jefe
+        // If profRel is array, take first, which contains usuarios relation
+        const prof = Array.isArray(profRel) ? profRel[0] : profRel
+        const usuario = prof?.usuarios ? (Array.isArray(prof.usuarios) ? prof.usuarios[0] : prof.usuarios) : null
+        const nombres = usuario?.nombres ?? ''
+        const apellidos = usuario?.apellidos ?? ''
+        profesorJefeName = [nombres, apellidos].filter(Boolean).join(' ') || null
+      } catch (e) {
+        profesorJefeName = null
+      }
+
+      const alumnos = countsMap[String(id)] ?? 0
+
+      return {
+        id,
+        nombre_curso,
+        tipo_ensenanza: tipo ?? null,
+        profesor_jefe: profesorJefeName,
+        alumnos,
+        // include raw curso data for debugging if needed
+        _raw: c,
+      }
+    })
+
+    return NextResponse.json({ data: normalized })
   } catch (err: any) {
     console.error('[api/cursos] unexpected error:', err)
     return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 })

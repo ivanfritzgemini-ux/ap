@@ -64,8 +64,27 @@ export function CourseManagementClient() {
     const [newCourse, setNewCourse] = React.useState(initialNewCourseState);
 
   React.useEffect(() => {
-    // TODO: replace with API call to load courses
-    setCourses([]);
+    // Load courses from API and map to the `Course` shape
+    let mounted = true
+    ;(async () => {
+      try {
+        const res = await fetch('/api/cursos')
+        const json = await res.json()
+        const rows = Array.isArray(json.data) ? json.data : []
+        const mapped = rows.map((c: any) => ({
+          id: String(c.id ?? ''),
+          name: c.nombre_curso ?? c.name ?? ([c.nivel, c.letra].filter(Boolean).join(' ') || ''),
+          teachingType: c.tipo_ensenanza ?? (Array.isArray(c.tipo_educacion) ? c.tipo_educacion[0]?.nombre : c.tipo_educacion?.nombre) ?? '',
+          headTeacher: c.profesor_jefe ?? c.profesor_jefe_name ?? (c.profesor_jefe?.name ?? c.profesor_jefe ?? null) ?? '',
+          studentCount: Number(c.alumnos ?? c.studentCount ?? 0)
+        })) as Course[]
+        if (!mounted) return
+        setCourses(mapped)
+      } catch (e) {
+        setCourses([])
+      }
+    })()
+    return () => { mounted = false }
   }, []);
 
     React.useEffect(() => {
