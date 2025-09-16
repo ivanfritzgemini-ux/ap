@@ -219,12 +219,20 @@ export function CourseManagementClient() {
       }
     }
 
-    const handleDeleteCourse = (courseId: string) => {
-        setCourses(courses.filter(course => course.id !== courseId));
-        toast({
-            title: "Curso Eliminado",
-            description: "El curso ha sido eliminado exitosamente.",
-        });
+    const handleDeleteCourse = async (courseId: string) => {
+      try {
+        const res = await fetch(`/api/cursos/${courseId}`, { method: 'DELETE' })
+        const json = await res.json()
+        if (!res.ok) {
+          throw new Error(json.error || 'No se pudo eliminar el curso')
+        }
+
+        // remove from UI
+        setCourses((prev) => prev.filter(c => c.id !== courseId))
+        toast({ title: 'Curso Eliminado', description: 'El curso ha sido eliminado exitosamente.' })
+      } catch (e: any) {
+        toast({ title: 'Error', description: e.message || 'No se pudo eliminar el curso.' })
+      }
     };
 
     const requestSort = (key: SortKey) => {

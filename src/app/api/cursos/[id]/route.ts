@@ -112,3 +112,41 @@ export async function PUT(req: Request, { params }: { params: { id?: string } })
 		return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 })
 	}
 }
+
+export async function DELETE(req: Request, { params }: { params: { id?: string } }) {
+	try {
+		const { id } = (await params) as { id?: string }
+		if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+		const supabase = await createServerClient()
+
+		// Count active students linked to this curso (fecha_retiro IS NULL)
+		const { data: studentsRows, error: studentsErr } = await supabase
+			.from('estudiantes_detalles')
+			.select('id')
+			.eq('curso_id', id)
+			.is('fecha_retiro', null)
+
+		if (studentsErr) {
+			console.error('[api/cursos/[id] DELETE] error counting students:', studentsErr)
+			return NextResponse.json({ error: 'Error comprobando alumnos' }, { status: 500 })
+		}
+
+		const activeCount = Array.isArray(studentsRows) ? studentsRows.length : 0
+		if (activeCount > 0) {
+			return NextResponse.json({ error: 'No se puede eliminar un curso que tiene alumnos activos.' }, { status: 400 })
+		}
+
+		// Safe to delete
+		const { data, error } = await supabase.from('cursos').delete().eq('id', id).select().single()
+		if (error) {
+			console.error('[api/cursos/[id] DELETE] supabase error deleting curso:', error)
+			return NextResponse.json({ error: error.message || 'Error eliminando curso' }, { status: 500 })
+		}
+
+		return NextResponse.json({ data })
+	} catch (err: any) {
+		console.error('[api/cursos/[id] DELETE] unexpected error:', err)
+		return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 })
+	}
+}
