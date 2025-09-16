@@ -39,7 +39,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { Course } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,8 +54,12 @@ type SortKey = keyof Course;
 
 const initialNewCourseState = {
     name: "",
-    description: "",
-    teacher: ""
+    // description removed
+  teacher: "",
+  nivel: "",
+  letra: "",
+  tipo_educacion_id: "",
+  headTeacherId: ""
 };
 
 export function CourseManagementClient() {
@@ -62,6 +72,10 @@ export function CourseManagementClient() {
     const itemsPerPage = 5;
 
     const [newCourse, setNewCourse] = React.useState(initialNewCourseState);
+  const [teachersOptions, setTeachersOptions] = React.useState<{ id: string; name: string }[]>([]);
+  const [teachingTypesOptions, setTeachingTypesOptions] = React.useState<{ id: string; name: string }[]>([]);
+  const [isCreating, setIsCreating] = React.useState(false);
+    const [editingCourseId, setEditingCourseId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     // Load courses from API and map to the `Course` shape
@@ -79,6 +93,8 @@ export function CourseManagementClient() {
           studentCount: Number(c.alumnos ?? c.studentCount ?? 0)
         })) as Course[]
         if (!mounted) return
+        // sort by name ascending (case-insensitive)
+        mapped.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
         setCourses(mapped)
       } catch (e) {
         setCourses([])
@@ -87,22 +103,119 @@ export function CourseManagementClient() {
     return () => { mounted = false }
   }, []);
 
-    React.useEffect(() => {
-        if (!isDialogOpen) {
-            setNewCourse(initialNewCourseState);
-        }
-    }, [isDialogOpen]);
+  // Load teachers and teaching types to populate selects
+  React.useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const [tRes, tiposRes] = await Promise.all([
+          fetch('/api/teachers'),
+          fetch('/api/tipo-educacion')
+        ])
+        const tJson = await tRes.json()
+        const tiposJson = await tiposRes.json()
+
+        if (!mounted) return
+
+  // Use profesores_detalles.id (teacher_details.id) as the select value because cursos.profesor_jefe_id references profesores_detalles.id
+  const teachers = Array.isArray(tJson.data) ? tJson.data.map((t: any) => ({ id: String((t.teacher_details && t.teacher_details.id) ?? t.id ?? ''), name: t.name || `${t.nombres || ''} ${t.apellidos || ''}`.trim() })) : []
+        setTeachersOptions(teachers)
+
+        const tiposRaw = Array.isArray(tiposJson.data) ? tiposJson.data : []
+        const tipos = tiposRaw.map((r: any) => ({ id: String(r.id), name: r.nombre }))
+        setTeachingTypesOptions(tipos)
+      } catch (e) {
+        // ignore errors, leave options empty
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
+
+  React.useEffect(() => {
+    if (!isDialogOpen) {
+      setNewCourse(initialNewCourseState);
+      setEditingCourseId(null);
+    }
+  }, [isDialogOpen]);
     
-    const handleCreateCourse = () => {
-        if (!newCourse.name.trim()) {
+  const handleCreateCourse = async () => {
+        // require at least nivel or name
+        const composedName = [newCourse.nivel, newCourse.letra, newCourse.name].filter(Boolean).join(' ').trim();
+        if (!composedName) {
+            toast({ title: 'Error', description: 'Ingrese al menos nivel o nombre del curso.' });
             return;
         }
-        toast({
-            title: "Curso Creado",
-            description: `El curso "${newCourse.name}" ha sido añadido exitosamente.`,
-        });
-        setIsDialogOpen(false);
+
+        setIsCreating(true);
+        try {
+          const payload = {
+            nivel: newCourse.nivel || null,
+            letra: newCourse.letra || null,
+            nombre: newCourse.name || null,
+            tipo_educacion_id: newCourse.tipo_educacion_id || null,
+            profesor_jefe_id: newCourse.headTeacherId || null,
+          }
+
+          if (editingCourseId) {
+            // Use the new per-id endpoint for updates
+            const res = await fetch(`/api/cursos/${editingCourseId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+            const json = await res.json()
+            if (!res.ok) throw new Error(json.error || 'Error al actualizar curso')
+          } else {
+            const res = await fetch('/api/cursos/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+            const json = await res.json()
+            if (!res.ok) throw new Error(json.error || 'Error al crear curso')
+          }
+
+          // Refresh courses list from server to keep in sync
+          try {
+            const r = await fetch('/api/cursos')
+            const j = await r.json()
+            const rows = Array.isArray(j.data) ? j.data : []
+            const mapped = rows.map((c: any) => ({
+              id: String(c.id ?? ''),
+              name: c.nombre_curso ?? c.name ?? ([c.nivel, c.letra].filter(Boolean).join(' ') || ''),
+              teachingType: c.tipo_ensenanza ?? (Array.isArray(c.tipo_educacion) ? c.tipo_educacion[0]?.nombre : c.tipo_educacion?.nombre) ?? '',
+              headTeacher: c.profesor_jefe ?? c.profesor_jefe_name ?? (c.profesor_jefe?.name ?? c.profesor_jefe ?? null) ?? '',
+              studentCount: Number(c.alumnos ?? c.studentCount ?? 0)
+            })) as Course[]
+            mapped.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+            setCourses(mapped)
+          } catch (e) {
+            // if refresh fails, at least notify success
+          }
+
+          toast({ title: editingCourseId ? 'Curso Actualizado' : 'Curso Creado', description: editingCourseId ? `El curso "${composedName}" ha sido actualizado.` : `El curso "${composedName}" ha sido añadido exitosamente.` })
+          setIsDialogOpen(false)
+        } catch (err: any) {
+          toast({ title: 'Error', description: err.message || (editingCourseId ? 'No se pudo actualizar el curso.' : 'No se pudo crear el curso.') })
+        } finally {
+          setIsCreating(false)
+        }
     };
+
+    const startEditingCourse = async (id: string) => {
+      try {
+        const res = await fetch(`/api/cursos/${id}`)
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'No se pudo cargar el curso')
+        const data = json.data
+        if (!data) throw new Error('Curso no encontrado')
+
+        setNewCourse({
+          name: data.nombre_curso ?? ([data.nivel, data.letra].filter(Boolean).join(' ') || ''),
+          teacher: '',
+          nivel: data.nivel ?? '',
+          letra: data.letra ?? '',
+          tipo_educacion_id: data.tipo_educacion_id ? String(data.tipo_educacion_id) : (data.tipo_educacion_id === null ? '' : ''),
+          headTeacherId: data.profesor_jefe_id ? String(data.profesor_jefe_id) : (data.profesor_jefe_id === null ? '' : '')
+        })
+        setEditingCourseId(String(id))
+        setIsDialogOpen(true)
+      } catch (e: any) {
+        toast({ title: 'Error', description: e.message || 'No se pudo cargar el curso.' })
+      }
+    }
 
     const handleDeleteCourse = (courseId: string) => {
         setCourses(courses.filter(course => course.id !== courseId));
@@ -174,6 +287,10 @@ export function CourseManagementClient() {
         setNewCourse(prev => ({ ...prev, [id]: value }));
     };
 
+  const handleSelectChange = (id: string, value: string) => {
+    setNewCourse(prev => ({ ...prev, [id]: value }));
+  }
+
   return (
     <>
       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -194,41 +311,61 @@ export function CourseManagementClient() {
                 Añadir Curso
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
-              <DialogTitle>Añadir Nuevo Curso</DialogTitle>
+              <DialogTitle>{editingCourseId ? 'Editar Curso' : 'Añadir Nuevo Curso'}</DialogTitle>
               <DialogDescription>
-                Rellene los detalles para crear un nuevo curso.
+                {editingCourseId ? 'Modifique los detalles y guarde los cambios.' : 'Rellene los detalles para crear un nuevo curso.'}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Nombre
-                </Label>
-                <Input 
-                    id="name" 
-                    placeholder="Álgebra" 
-                    className="col-span-3"
-                    value={newCourse.name}
-                    onChange={handleInputChange}
-                />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-6">
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="nivel" className="text-sm">Nivel</Label>
+                  <Input id="nivel" placeholder="Ej: 1" value={newCourse.nivel} onChange={handleInputChange} />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="letra" className="text-sm">Letra</Label>
+                  <Input id="letra" placeholder="Ej: A" value={newCourse.letra} onChange={handleInputChange} />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="name" className="text-sm">Nombre (opcional)</Label>
+                  <Input id="name" placeholder="Álgebra" value={newCourse.name} onChange={handleInputChange} />
+                </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="description" className="text-right">
-                  Descripción
-                </Label>
-                <Textarea id="description" placeholder="Curso introductorio de álgebra" className="col-span-3" value={newCourse.description} onChange={handleInputChange} />
-              </div>
-               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="teacher" className="text-right">
-                  Profesor
-                </Label>
-                <Input id="teacher" placeholder="John Teacher" className="col-span-3" value={newCourse.teacher} onChange={handleInputChange} />
+
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="teachingType" className="text-sm">Tipo de Enseñanza</Label>
+                  <Select value={newCourse.tipo_educacion_id} onValueChange={(v) => handleSelectChange('tipo_educacion_id', v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar tipo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teachingTypesOptions.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="headTeacherId" className="text-sm">Profesor Jefe</Label>
+                  <Select value={newCourse.headTeacherId} onValueChange={(v) => handleSelectChange('headTeacherId', v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar profesor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teachersOptions.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
+
             <DialogFooter>
-              <Button type="submit" onClick={handleCreateCourse}>Crear Curso</Button>
+              <Button type="submit" onClick={handleCreateCourse} disabled={isCreating}>{isCreating ? (editingCourseId ? 'Guardando...' : 'Creando...') : (editingCourseId ? 'Actualizar Curso' : 'Crear Curso')}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -275,7 +412,7 @@ export function CourseManagementClient() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem>Editar</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => startEditingCourse(course.id)}>Editar</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                     <Trash2 className="mr-2 h-4 w-4" />
@@ -320,7 +457,7 @@ export function CourseManagementClient() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => startEditingCourse(course.id)}>Editar</DropdownMenuItem>
                         <AlertDialogTrigger asChild>
                             <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                 <Trash2 className="mr-2 h-4 w-4" />
