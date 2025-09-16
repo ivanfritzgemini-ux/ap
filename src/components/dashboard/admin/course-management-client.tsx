@@ -157,8 +157,10 @@ export function CourseManagementClient() {
           }
 
           if (editingCourseId) {
-            // Use the new per-id endpoint for updates
-            const res = await fetch(`/api/cursos/${editingCourseId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+            // When editing, only allow updating profesor_jefe_id per request
+            const editPayload: any = {}
+            if (payload.profesor_jefe_id !== undefined) editPayload.profesor_jefe_id = payload.profesor_jefe_id
+            const res = await fetch(`/api/cursos/${editingCourseId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editPayload) })
             const json = await res.json()
             if (!res.ok) throw new Error(json.error || 'Error al actualizar curso')
           } else {
@@ -291,6 +293,8 @@ export function CourseManagementClient() {
     setNewCourse(prev => ({ ...prev, [id]: value }));
   }
 
+  const isEditMode = Boolean(editingCourseId)
+
   return (
     <>
       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -323,24 +327,24 @@ export function CourseManagementClient() {
               <div className="space-y-4">
                 <div className="grid gap-2">
                   <Label htmlFor="nivel" className="text-sm">Nivel</Label>
-                  <Input id="nivel" placeholder="Ej: 1" value={newCourse.nivel} onChange={handleInputChange} />
+                  <Input id="nivel" placeholder="Ej: 1" value={newCourse.nivel} onChange={handleInputChange} disabled={isEditMode} />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="letra" className="text-sm">Letra</Label>
-                  <Input id="letra" placeholder="Ej: A" value={newCourse.letra} onChange={handleInputChange} />
+                  <Input id="letra" placeholder="Ej: A" value={newCourse.letra} onChange={handleInputChange} disabled={isEditMode} />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="name" className="text-sm">Nombre (opcional)</Label>
-                  <Input id="name" placeholder="Álgebra" value={newCourse.name} onChange={handleInputChange} />
+                  <Input id="name" placeholder="Álgebra" value={newCourse.name} onChange={handleInputChange} disabled={isEditMode} />
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="grid gap-2">
                   <Label htmlFor="teachingType" className="text-sm">Tipo de Enseñanza</Label>
-                  <Select value={newCourse.tipo_educacion_id} onValueChange={(v) => handleSelectChange('tipo_educacion_id', v)}>
+                  <Select value={newCourse.tipo_educacion_id} onValueChange={(v) => handleSelectChange('tipo_educacion_id', v)} disabled={isEditMode}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar tipo..." />
                     </SelectTrigger>
