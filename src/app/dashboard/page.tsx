@@ -22,10 +22,11 @@ import {
 } from "@/components/ui/select"
 import { Users, BookOpen, Briefcase, ClipboardCheck, ArrowUpRight, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle } from "lucide-react"
 import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
+import { MonthlyMovementsWrapper } from '@/components/dashboard/monthly-movements-wrapper'
 import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 
-const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCourses, activeClasses, enrollmentData }: { fullName: string; role: string, totalStudents:number, totalTeachers:number, totalCourses:number, activeClasses:number, enrollmentData:{month:string;enrollments:number}[] }) => (
+const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCourses, activeClasses, enrollmentData, courses }: { fullName: string; role: string, totalStudents:number, totalTeachers:number, totalCourses:number, activeClasses:number, enrollmentData:{month:string;matriculas:number}[], courses: any[] }) => (
   <div className="space-y-6">
     <div>
       <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
@@ -84,44 +85,17 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
             </CardTitle>
             <CardDescription>Ingresos y retiros de alumnos para el mes seleccionado.</CardDescription>
           </div>
-          <Select defaultValue="agosto">
-            <SelectTrigger className="w-full md:w-[180px]">
-              <SelectValue placeholder="Seleccione un mes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="agosto">Agosto</SelectItem>
-              <SelectItem value="julio">Julio</SelectItem>
-              <SelectItem value="junio">Junio</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-lg bg-green-900/50 p-4 flex items-center gap-4">
-          <div className="p-3 rounded-full bg-green-500/20">
-            <UserPlus className="h-6 w-6 text-green-400" />
-          </div>
-          <div>
-            <p className="text-sm text-green-400">Nuevos Ingresos</p>
-            <p className="text-2xl font-bold">0</p>
-          </div>
-        </div>
-        <div className="rounded-lg bg-red-900/50 p-4 flex items-center gap-4">
-          <div className="p-3 rounded-full bg-red-500/20">
-            <UserMinus className="h-6 w-6 text-red-400" />
-          </div>
-          <div>
-            <p className="text-sm text-red-400">Alumnos Retirados</p>
-            <p className="text-2xl font-bold">0</p>
-          </div>
-        </div>
+      <CardContent>
+        <MonthlyMovementsWrapper />
       </CardContent>
     </Card>
 
     <div className="grid gap-6 lg:grid-cols-3">
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle>Resumen de Inscripciones</CardTitle>
+          <CardTitle>Resumen de Matriculados</CardTitle>
         </CardHeader>
         <CardContent className="pl-2">
            <EnrollmentChart data={enrollmentData} />
@@ -170,7 +144,7 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
     </div>
     
      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <Card className="lg:col-span-1">
             <CardHeader>
                 <CardTitle>Estudiantes por Curso</CardTitle>
             </CardHeader>
@@ -183,22 +157,18 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
                         </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {Array.isArray(courses) && courses.length > 0 ? (
+                        courses.map((c: any) => (
+                          <TableRow key={c.id}>
+                            <TableCell>{c.nombre_curso}</TableCell>
+                            <TableCell className="text-right">{c.alumnos}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
                         <TableRow>
-                            <TableCell>1° A</TableCell>
-                            <TableCell className="text-right">1</TableCell>
+                          <TableCell colSpan={2} className="text-sm text-muted-foreground">No hay cursos registrados.</TableCell>
                         </TableRow>
-                        <TableRow>
-                            <TableCell>2° C</TableCell>
-                            <TableCell className="text-right">0</TableCell>
-                        </TableRow>
-                        <TableRow>
-                            <TableCell>1° B</TableCell>
-                            <TableCell className="text-right">0</TableCell>
-                        </TableRow>
-                        <TableRow>
-                            <TableCell>2° A</TableCell>
-                            <TableCell className="text-right">0</TableCell>
-                        </TableRow>
+                      )}
                     </TableBody>
                 </Table>
             </CardContent>
@@ -393,7 +363,8 @@ export default async function DashboardPage() {
     let totalTeachers = 0
     let totalCourses = 0
     let activeClasses = 0
-    let enrollmentData: { month: string; enrollments: number }[] = []
+  let enrollmentData: { month: string; matriculas: number }[] = []
+    let normalizedCourses: any[] = []
 
     try {
       // count students (estudiantes_detalles without fecha_retiro)
@@ -409,25 +380,55 @@ export default async function DashboardPage() {
       const coursesErr = coursesRes.error
       totalCourses = Array.isArray(coursesData) ? coursesData.length : 0
 
+      // Build students-per-course counts: fetch estudiantes_detalles for active students
+      try {
+        const { data: studentRows } = await supabase.from('estudiantes_detalles').select('curso_id').is('fecha_retiro', null)
+        const countsMap: Record<string, number> = {}
+        if (Array.isArray(studentRows)) {
+          for (const r of studentRows as any[]) {
+            const key = String(r.curso_id)
+            countsMap[key] = (countsMap[key] || 0) + 1
+          }
+        }
+
+        // Normalize courses array for rendering
+        const coursesList = Array.isArray(coursesData) ? coursesData as any[] : []
+        normalizedCourses = coursesList.map((c: any) => {
+          const id = c.id
+          const nivel = c.nivel ?? ''
+          const letra = c.letra ?? ''
+          const nombre_curso = [nivel, letra].filter(Boolean).join(' ').trim() || c.nombre || String(id)
+          return {
+            id,
+            nombre_curso,
+            alumnos: countsMap[String(id)] ?? 0,
+            _raw: c,
+          }
+        })
+      } catch (e) {
+        normalizedCourses = Array.isArray(coursesData) ? (coursesData as any[]).map((c: any) => ({ id: c.id, nombre_curso: `${c.nivel ?? ''} ${c.letra ?? ''}`.trim(), alumnos: 0, _raw: c })) : []
+      }
+
       // enrollment rows for monthly aggregation
   const enrollRes = await supabase.from('estudiantes_detalles').select('fecha_matricula')
   const enrollRows = enrollRes.data as any
       // Heuristic for totalTeachers: query roles table for 'profesor' role id then count users
-      try {
-  const rolesRes = (await supabase.from('roles').select('id,nombre_rol')).data as any
-  const teacherRole = (rolesRes || []).find((r: any) => /profesor|teacher/i.test(r.nombre_rol))
+          try {
+      const rolesRes = (await supabase.from('roles').select('id,nombre_rol')).data as any
+      // Prefer exact match for role names that include 'docente' (Spanish), 'profesor' or 'teacher'
+      const teacherRole = (rolesRes || []).find((r: any) => /docente|profesor|teacher/i.test(r.nombre_rol))
         if (teacherRole) {
           const { count } = await supabase.from('usuarios').select('id', { count: 'exact', head: false }).eq('rol_id', teacherRole.id)
           totalTeachers = count ?? 0
         } else {
           // fallback: try simple ilike search on roles relationship
-          const teachersGuess = (await supabase.from('usuarios').select('id,roles(nombre_rol)')).data as any
-          totalTeachers = Array.isArray(teachersGuess) ? teachersGuess.filter((u: any) => {
-            const r = u.roles
-            if (!r) return false
-            const name = Array.isArray(r) ? r[0]?.nombre_rol : r.nombre_rol
-            return /profesor|teacher/i.test(name || '')
-          }).length : 0
+              const teachersGuess = (await supabase.from('usuarios').select('id,roles(nombre_rol)')).data as any
+              totalTeachers = Array.isArray(teachersGuess) ? teachersGuess.filter((u: any) => {
+                const r = u.roles
+                if (!r) return false
+                const name = Array.isArray(r) ? r[0]?.nombre_rol : r.nombre_rol
+                return /docente|profesor|teacher/i.test(name || '')
+              }).length : 0
         }
       } catch (e: any) {
         console.error('[dashboard] teacher count error', e)
@@ -442,9 +443,21 @@ export default async function DashboardPage() {
       }
 
       // Build monthly enrollment counts from fecha_matricula
-      const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+      // Only include months Mar..Dic (2..11)
+      const monthsWithIndex = [
+        { label: 'Mar', idx: 2 },
+        { label: 'Abr', idx: 3 },
+        { label: 'May', idx: 4 },
+        { label: 'Jun', idx: 5 },
+        { label: 'Jul', idx: 6 },
+        { label: 'Ago', idx: 7 },
+        { label: 'Sep', idx: 8 },
+        { label: 'Oct', idx: 9 },
+        { label: 'Nov', idx: 10 },
+        { label: 'Dic', idx: 11 },
+      ]
       const counts: Record<number, number> = {}
-  if (enrollRows && Array.isArray(enrollRows)) {
+      if (enrollRows && Array.isArray(enrollRows)) {
         for (const row of enrollRows) {
           const dateStr = row?.fecha_matricula
           if (!dateStr) continue
@@ -454,7 +467,7 @@ export default async function DashboardPage() {
           counts[m] = (counts[m] || 0) + 1
         }
       }
-      enrollmentData = months.map((m, i) => ({ month: m, enrollments: counts[i] || 0 }))
+  enrollmentData = monthsWithIndex.map((m) => ({ month: m.label, matriculas: counts[m.idx] || 0 }))
     } catch (e: any) {
       console.error('[dashboard] aggregate fetch error', e)
     }
@@ -463,7 +476,7 @@ export default async function DashboardPage() {
   // Decide which dashboard to render using the normalized role key.
   switch (normalizedRole) {
     case "administrator":
-      DashboardComponent = () => <AdminDashboard fullName={fullName} role={userRole} totalStudents={totalStudents} totalTeachers={totalTeachers} totalCourses={totalCourses} activeClasses={activeClasses} enrollmentData={enrollmentData} />;
+  DashboardComponent = () => <AdminDashboard fullName={fullName} role={userRole} totalStudents={totalStudents} totalTeachers={totalTeachers} totalCourses={totalCourses} activeClasses={activeClasses} enrollmentData={enrollmentData} courses={normalizedCourses} />;
       break;
     case "teacher":
       DashboardComponent = () => <TeacherDashboard fullName={fullName} role={userRole} />;
