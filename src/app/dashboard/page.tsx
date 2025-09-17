@@ -20,11 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, BookOpen, Briefcase, ClipboardCheck, ArrowUpRight, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle } from "lucide-react"
+import { Users, BookOpen, Briefcase, ClipboardCheck, ArrowUpRight, ArrowUp, ArrowDown, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle } from "lucide-react"
 import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
 import { MonthlyMovementsWrapper } from '@/components/dashboard/monthly-movements-wrapper'
 import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+
+import { GenderDonut } from '@/components/dashboard/gender-donut'
 
 const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCourses, activeClasses, enrollmentData, courses }: { fullName: string; role: string, totalStudents:number, totalTeachers:number, totalCourses:number, activeClasses:number, enrollmentData:{month:string;matriculas:number}[], courses: any[] }) => (
   <div className="space-y-6">
@@ -103,42 +105,11 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Actividad Reciente</CardTitle>
-          <CardDescription>Últimas actualizaciones y adiciones al sistema.</CardDescription>
+          <CardTitle>Distribución por Sexo</CardTitle>
+          <CardDescription>Porcentaje de estudiantes por sexo (activo).</CardDescription>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-4">
-            <li className="flex items-start gap-3">
-              <div className="flex-shrink-0 pt-1">
-                <Book className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Nuevo Curso Agregado</p>
-                <p className="text-xs text-muted-foreground">"Intro a CS" por Dr. Alan Turing</p>
-              </div>
-              <time className="ml-auto text-xs text-muted-foreground">hace 5m</time>
-            </li>
-            <li className="flex items-start gap-3">
-              <div className="flex-shrink-0 pt-1">
-                <GraduationCap className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Profesor Actualizado</p>
-                <p className="text-xs text-muted-foreground">Sra. Jones ahora enseña "Historia Moderna"</p>
-              </div>
-              <time className="ml-auto text-xs text-muted-foreground">hace 3h</time>
-            </li>
-             <li className="flex items-start gap-3">
-              <div className="flex-shrink-0 pt-1">
-                <UserCheck className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Estudiante Inscrito</p>
-                <p className="text-xs text-muted-foreground">Diana Miller se inscribió en "Cálculo I"</p>
-              </div>
-              <time className="ml-auto text-xs text-muted-foreground">hace 3h</time>
-            </li>
-          </ul>
+          <GenderDonut />
         </CardContent>
       </Card>
     </div>
@@ -161,7 +132,24 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
                         courses.map((c: any) => (
                           <TableRow key={c.id}>
                             <TableCell>{c.nombre_curso}</TableCell>
-                            <TableCell className="text-right">{c.alumnos}</TableCell>
+                            <TableCell className="text-right flex items-center justify-end gap-2">
+                              <span>{c.alumnos}</span>
+                              {c.delta > 0 ? (
+                                <span className="inline-flex items-center text-green-600 text-sm">
+                                  <ArrowUp className="h-4 w-4 animate-pulse" />
+                                  <span className="ml-1">+{c.delta}</span>
+                                  {c.percent !== null ? <span className="ml-2 text-xs text-green-700">({c.percent}%)</span> : null}
+                                </span>
+                              ) : c.delta < 0 ? (
+                                <span className="inline-flex items-center text-red-600 text-sm">
+                                  <ArrowDown className="h-4 w-4 animate-pulse" />
+                                  <span className="ml-1">-{Math.abs(c.delta)}</span>
+                                  {c.percent !== null ? <span className="ml-2 text-xs text-red-700">({Math.abs(c.percent)}%)</span> : null}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-muted-foreground text-sm">—</span>
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
@@ -381,27 +369,53 @@ export default async function DashboardPage() {
       totalCourses = Array.isArray(coursesData) ? coursesData.length : 0
 
       // Build students-per-course counts: fetch estudiantes_detalles for active students
-      try {
-        const { data: studentRows } = await supabase.from('estudiantes_detalles').select('curso_id').is('fecha_retiro', null)
+        try {
+        // Fetch relevant fields to compute current active students per course
+        const { data: studentRows } = await supabase.from('estudiantes_detalles').select('curso_id,fecha_matricula,fecha_retiro')
         const countsMap: Record<string, number> = {}
+        const prevCountsMap: Record<string, number> = {}
+
+        // previous month end date
+        const now = new Date()
+        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const prevMonthEnd = new Date(prev.getFullYear(), prev.getMonth() + 1, 0)
+
         if (Array.isArray(studentRows)) {
           for (const r of studentRows as any[]) {
             const key = String(r.curso_id)
-            countsMap[key] = (countsMap[key] || 0) + 1
+
+            // current active students: no fecha_retiro
+            if (r.fecha_retiro == null) {
+              countsMap[key] = (countsMap[key] || 0) + 1
+            }
+
+            // compute if student was active at end of previous month
+            const fm = r.fecha_matricula ? new Date(r.fecha_matricula) : null
+            const fr = r.fecha_retiro ? new Date(r.fecha_retiro) : null
+            if (fm && fm <= prevMonthEnd && (!fr || fr > prevMonthEnd)) {
+              prevCountsMap[key] = (prevCountsMap[key] || 0) + 1
+            }
           }
         }
 
-        // Normalize courses array for rendering
+        // Normalize courses array for rendering and include previous month counts
         const coursesList = Array.isArray(coursesData) ? coursesData as any[] : []
         normalizedCourses = coursesList.map((c: any) => {
           const id = c.id
           const nivel = c.nivel ?? ''
           const letra = c.letra ?? ''
           const nombre_curso = [nivel, letra].filter(Boolean).join(' ').trim() || c.nombre || String(id)
+          const alumnos = countsMap[String(id)] ?? 0
+          const prevAlumnos = prevCountsMap[String(id)] ?? 0
+          const delta = alumnos - prevAlumnos
+          const percent = prevAlumnos > 0 ? Number(((delta / prevAlumnos) * 100).toFixed(1)) : null
           return {
             id,
             nombre_curso,
-            alumnos: countsMap[String(id)] ?? 0,
+            alumnos,
+            prevAlumnos,
+            delta,
+            percent,
             _raw: c,
           }
         })
@@ -433,6 +447,8 @@ export default async function DashboardPage() {
       } catch (e: any) {
         console.error('[dashboard] teacher count error', e)
       }
+
+  
 
       // activeClasses: approximate by distinct curso_id in estudiantes_detalles
       try {
