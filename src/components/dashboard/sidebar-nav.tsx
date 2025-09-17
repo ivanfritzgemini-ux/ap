@@ -11,7 +11,6 @@ import {
   Users,
   ClipboardCheck,
   ShieldCheck,
-  BookOpen,
   Calendar,
   User,
   GraduationCap,
@@ -22,6 +21,7 @@ import {
   Building,
   Database
 } from "lucide-react";
+import Logo from "@/components/logo";
 import type { Role } from '@/lib/types';
 
 interface SidebarNavProps {
@@ -46,7 +46,7 @@ const navItems = {
   ],
   teacher: [
     { href: '/dashboard/teacher/attendance', label: 'Asistencia', icon: ClipboardCheck },
-    { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: BookOpen },
+  { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: Logo },
   ],
   parent: [
     { href: '/dashboard/parent/overview', label: 'Resumen del Niño', icon: User },
@@ -102,10 +102,10 @@ export function SidebarNav({ userRole }: SidebarNavProps) {
               isActive={pathname === item.href}
               tooltip={item.label}
             >
-              <a href={item.href}>
-                <item.icon />
-                <span>{item.label}</span>
-              </a>
+                <a href={item.href} className="flex items-center gap-2">
+                  <item.icon className="h-4 md:h-5 lg:h-6 w-auto text-muted-foreground" />
+                  <span>{item.label}</span>
+                </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         ))}

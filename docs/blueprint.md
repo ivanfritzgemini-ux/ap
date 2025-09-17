@@ -1,4 +1,4 @@
-# **App Name**: CampusConnect
+# **App Name**: Polivalente Digital
 
 ## Core Features:
 

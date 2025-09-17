@@ -4,7 +4,7 @@ export const users: User[] = [
   {
     id: 'usr_1',
     name: 'Admin User',
-    email: 'admin@campusconnect.com',
+  email: 'admin@polivalentedigital.com',
     role: 'administrator',
     rut: '11.111.111-1',
     gender: 'Masculino',
@@ -12,7 +12,7 @@ export const users: User[] = [
   {
     id: 'usr_2',
     name: 'John Teacher',
-    email: 'john.t@campusconnect.com',
+  email: 'john.t@polivalentedigital.com',
     role: 'teacher',
     rut: '22.222.222-2',
     gender: 'Masculino',
@@ -20,7 +20,7 @@ export const users: User[] = [
   {
     id: 'usr_3',
     name: 'Jane Student',
-    email: 'jane.s@campusconnect.com',
+  email: 'jane.s@polivalentedigital.com',
     role: 'student',
     registrationNumber: '2023001',
     rut: '12.345.678-9',
@@ -30,7 +30,7 @@ export const users: User[] = [
   {
     id: 'usr_4',
     name: 'Peter Parent',
-    email: 'peter.p@campusconnect.com',
+  email: 'peter.p@polivalentedigital.com',
     role: 'parent',
     rut: '33.333.333-3',
     gender: 'Masculino',
@@ -38,7 +38,7 @@ export const users: User[] = [
    {
     id: 'usr_5',
     name: 'Emily Teacher',
-    email: 'emily.t@campusconnect.com',
+  email: 'emily.t@polivalentedigital.com',
     role: 'teacher',
     rut: '44.444.444-4',
     gender: 'Femenino',
@@ -46,7 +46,7 @@ export const users: User[] = [
   {
     id: 'usr_6',
     name: 'Michael Student',
-    email: 'michael.s@campusconnect.com',
+  email: 'michael.s@polivalentedigital.com',
     role: 'student',
     registrationNumber: '2023002',
     rut: '23.456.789-K',
@@ -56,7 +56,7 @@ export const users: User[] = [
   {
     id: 'usr_7',
     name: 'Diana Miller',
-    email: 'diana.m@campusconnect.com',
+  email: 'diana.m@polivalentedigital.com',
     role: 'student',
     registrationNumber: '2023003',
     rut: '11.222.333-4',

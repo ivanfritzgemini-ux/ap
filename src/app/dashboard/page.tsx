@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, BookOpen, Briefcase, ClipboardCheck, ArrowUpRight, ArrowUp, ArrowDown, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle } from "lucide-react"
+import { Users, Briefcase, ClipboardCheck, ArrowUpRight, ArrowUp, ArrowDown, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle } from "lucide-react"
+import Logo from "@/components/logo"
 import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
 import { MonthlyMovementsWrapper } from '@/components/dashboard/monthly-movements-wrapper'
 import { createServerClient } from "@/lib/supabase/server"
@@ -58,7 +59,7 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total de Cursos</CardTitle>
-          <BookOpen className="h-4 w-4 text-muted-foreground" />
+          <Logo className="h-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{totalCourses}</div>
