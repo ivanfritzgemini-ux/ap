@@ -137,14 +137,14 @@ export function GenderDonut() {
         </div>
       </div>
 
-      {/* Hover box absolutely positioned below the component so it doesn't get clipped and is easy to read */}
-      {hovered ? (
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: -76, zIndex: 40 }}>
-          <CustomTooltip name={hovered} />
-        </div>
-      ) : null}
+      {/* Hover box moved into the right column so it appears to the right of the donut */}
+      <div style={{ height: 180, position: 'relative' }}>
+        {hovered ? (
+          <div style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 40 }}>
+            <CustomTooltip name={hovered} />
+          </div>
+        ) : null}
 
-      <div style={{ height: 180 }}>
         <div className="flex flex-col justify-between h-full">
           <div>
             <div className="flex items-center gap-2 text-xs cursor-pointer" onClick={() => onClick('female')}>

@@ -21,7 +21,6 @@ import {
   Building,
   Database
 } from "lucide-react";
-import Logo from "@/components/logo";
 import type { Role } from '@/lib/types';
 
 interface SidebarNavProps {
@@ -44,9 +43,9 @@ const navItems = {
     { href: '/dashboard/admin/parent-access', label: 'Acceso de Padres', icon: ShieldCheck },
     { href: '/dashboard/admin/view-users', label: 'Ver Usuarios DB', icon: Database },
   ],
-  teacher: [
+    teacher: [
     { href: '/dashboard/teacher/attendance', label: 'Asistencia', icon: ClipboardCheck },
-  { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: Logo },
+    { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: Book },
   ],
   parent: [
     { href: '/dashboard/parent/overview', label: 'Resumen del Niño', icon: User },
