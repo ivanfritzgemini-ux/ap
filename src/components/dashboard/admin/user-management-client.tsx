@@ -17,7 +17,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, Loader2, Edit } from "lucide-react";
 import { users as mockUsers } from "@/lib/mock-data";
 import {
   Dialog,
@@ -52,6 +52,7 @@ import type { User } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRut } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type SortKey = keyof User;
 
@@ -100,6 +101,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
 
   const [newUser, setNewUser] = React.useState(initialNewUserState);
   const [editingUserId, setEditingUserId] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [roles, setRoles] = React.useState<Array<{id:string,nombre_rol:string}>>([])
   const [sexos, setSexos] = React.useState<Array<{id:string,nombre:string}>>([])
 
@@ -136,17 +138,20 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
 
   const handleCreateUser = async () => {
     if (!newUser.firstName.trim()) return
+
     const payload = {
       rut: newUser.rut,
       nombres: newUser.firstName,
       apellidos: newUser.lastName,
-      sexo_id: newUser.gender, // should be id from sexos list
+      sexo_id: newUser.gender,
       email: newUser.email,
       telefono: newUser.phone,
       direccion: newUser.address,
-      rol_id: newUser.role, // should be id from roles list
+      rol_id: newUser.role,
       fecha_nacimiento: `${newUser.birthYear}-${String(newUser.birthMonth).padStart(2,'0')}-${String(newUser.birthDay).padStart(2,'0')}`
     }
+
+    setIsSubmitting(true)
     try {
       if (editingUserId) {
         // update flow
@@ -156,30 +161,78 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
         setUsers(prev => {
           const updated = prev.map(u => (u.id === editingUserId ? json.data : u))
           updated.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
-          // ensure current page shows the updated user
           const idx = updated.findIndex(u => u.id === editingUserId)
           if (idx >= 0) setCurrentPage(Math.floor(idx / itemsPerPage) + 1)
           return updated
         })
         toast({ title: 'Usuario Actualizado', description: `El usuario ${newUser.firstName} ha sido actualizado.` })
       } else {
+        // Optimistic UI: insert a temporary user while request is pending
+        const tempId = `temp-${Date.now()}`
+        // try to map role and gender labels from the already-loaded caches
+        const roleLabel = (roles.find(r => r.id === payload.rol_id) || { nombre_rol: 'Cargando...' }).nombre_rol;
+        const genderLabel = (sexos.find(s => s.id === payload.sexo_id) || { nombre: null }).nombre;
+
+        const optimisticUser: any = {
+          id: tempId,
+          rut: payload.rut,
+          nombres: payload.nombres,
+          apellidos: payload.apellidos,
+          name: `${payload.apellidos || ''} ${payload.nombres || ''}`.trim(),
+          email: payload.email,
+          telefono: payload.telefono,
+          direccion: payload.direccion,
+          status: true,
+          fecha_nacimiento: payload.fecha_nacimiento,
+          sexo_id: payload.sexo_id,
+          rol_id: payload.rol_id,
+          // show mapped labels when possible so the optimistic row looks correct
+          gender: genderLabel,
+          role: roleLabel || 'Cargando...'
+        }
+
+        setUsers(prev => {
+          const next = [optimisticUser, ...prev]
+          next.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+          const idx = next.findIndex(u => u.id === optimisticUser.id)
+          if (idx >= 0) setCurrentPage(Math.floor(idx / itemsPerPage) + 1)
+          return next
+        })
+
         const res = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         const json = await res.json()
-        if (!res.ok) throw new Error(json?.error || 'Error creating user')
-        // add to list
+        if (!res.ok) {
+          // rollback optimistic
+          setUsers(prev => prev.filter(u => u.id !== tempId))
+          throw new Error(json?.error || 'Error creating user')
+        }
+
+        // Replace temp user with real one (or add if not found)
         setUsers(prev => {
+          const found = prev.findIndex(u => u.id === tempId)
+          if (found >= 0) {
+            const next = prev.slice()
+            next[found] = json.data
+            next.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+            const idx = next.findIndex(u => u.id === json.data.id)
+            if (idx >= 0) setCurrentPage(Math.floor(idx / itemsPerPage) + 1)
+            return next
+          }
           const next = [json.data, ...prev]
           next.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
-          // show page containing the new user
           const idx = next.findIndex(u => u.id === json.data.id)
           if (idx >= 0) setCurrentPage(Math.floor(idx / itemsPerPage) + 1)
           return next
         })
+
         toast({ title: 'Usuario Creado', description: `El usuario ${newUser.firstName} ha sido añadido.` })
       }
+
       setIsDialogOpen(false)
     } catch (e: any) {
       toast({ title: 'Error', description: e.message || 'No se pudo crear/actualizar el usuario' })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -277,28 +330,27 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
     (user.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.email ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+  const sortedUsers = React.useMemo(() => {
+    let sortableUsers = [...filteredUsers];
+    if (sortConfig !== null) {
+      sortableUsers.sort((a: any, b: any) => {
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
 
-    const sortedUsers = React.useMemo(() => {
-        let sortableUsers = [...filteredUsers];
-        if (sortConfig !== null) {
-            sortableUsers.sort((a, b) => {
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
+        if (aValue === undefined || aValue === null) return 1;
+        if (bValue === undefined || bValue === null) return -1;
 
-                if (aValue === undefined || aValue === null) return 1;
-                if (bValue === undefined || bValue === null) return -1;
-
-                if (aValue < bValue) {
-                    return sortConfig.direction === 'ascending' ? -1 : 1;
-                }
-                if (aValue > bValue) {
-                    return sortConfig.direction === 'ascending' ? 1 : -1;
-                }
-                return 0;
-            });
+        if (aValue < bValue) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
         }
-        return sortableUsers;
-    }, [filteredUsers, sortConfig]);
+        if (aValue > bValue) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableUsers;
+  }, [filteredUsers, sortConfig]);
 
     const totalPages = Math.ceil(sortedUsers.length / itemsPerPage);
     const indexOfLastItem = currentPage * itemsPerPage;
@@ -368,22 +420,22 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
               <div className="space-y-4">
                 <div className="grid gap-2">
                     <Label htmlFor="rut">RUT</Label>
-                    <Input id="rut" placeholder="12.345.678-9" value={newUser.rut} onChange={handleInputChange} />
+                    <Input id="rut" placeholder="12.345.678-9" value={newUser.rut} onChange={handleInputChange} disabled={isSubmitting} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                         <Label htmlFor="lastName">Apellidos</Label>
-                        <Input id="lastName" placeholder="Pérez" value={newUser.lastName} onChange={handleInputChange} />
+                        <Input id="lastName" placeholder="Pérez" value={newUser.lastName} onChange={handleInputChange} disabled={isSubmitting} />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="firstName">Nombres</Label>
-                        <Input id="firstName" value={newUser.firstName} onChange={handleInputChange} placeholder="Juan" />
+                        <Input id="firstName" value={newUser.firstName} onChange={handleInputChange} placeholder="Juan" disabled={isSubmitting} />
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                         <Label htmlFor="gender">Sexo</Label>
-            <Select onValueChange={handleSelectChange('gender')} value={newUser.gender}>
+            <Select onValueChange={handleSelectChange('gender')} value={newUser.gender} disabled={isSubmitting}>
               <SelectTrigger>
                 <SelectValue placeholder="Seleccione el sexo" />
               </SelectTrigger>
@@ -395,7 +447,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                     <div className="grid gap-2">
                         <Label>Fecha de nacimiento</Label>
                         <div className="grid grid-cols-3 gap-2">
-                           <Select onValueChange={handleSelectChange('birthDay')} value={newUser.birthDay}>
+                           <Select onValueChange={handleSelectChange('birthDay')} value={newUser.birthDay} disabled={isSubmitting}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Día" />
                                 </SelectTrigger>
@@ -403,7 +455,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                                     {days.map(day => <SelectItem key={day} value={String(day)}>{day}</SelectItem>)}
                                 </SelectContent>
                             </Select>
-                            <Select onValueChange={handleSelectChange('birthMonth')} value={newUser.birthMonth}>
+                            <Select onValueChange={handleSelectChange('birthMonth')} value={newUser.birthMonth} disabled={isSubmitting}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Mes" />
                                 </SelectTrigger>
@@ -411,7 +463,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                                     {months.map(month => <SelectItem key={month.value} value={String(month.value)}>{month.label}</SelectItem>)}
                                 </SelectContent>
                             </Select>
-                            <Select onValueChange={handleSelectChange('birthYear')} value={newUser.birthYear}>
+                            <Select onValueChange={handleSelectChange('birthYear')} value={newUser.birthYear} disabled={isSubmitting}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Año" />
                                 </SelectTrigger>
@@ -424,21 +476,21 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                 </div>
                  <div className="grid gap-2">
                     <Label htmlFor="address">Dirección</Label>
-                    <Input id="address" placeholder="Av. Siempre Viva 742" value={newUser.address} onChange={handleInputChange} />
+                    <Input id="address" placeholder="Av. Siempre Viva 742" value={newUser.address} onChange={handleInputChange} disabled={isSubmitting} />
                 </div>
               </div>
               <div className="space-y-4">
                  <div className="grid gap-2">
                     <Label htmlFor="email">Correo</Label>
-                    <Input id="email" type="email" placeholder="juan.perez@ejemplo.com" value={newUser.email} onChange={handleInputChange}/>
+                    <Input id="email" type="email" placeholder="juan.perez@ejemplo.com" value={newUser.email} onChange={handleInputChange} disabled={isSubmitting}/>
                 </div>
                  <div className="grid gap-2">
                     <Label htmlFor="phone">Teléfono</Label>
-                    <Input id="phone" placeholder="+56 9 1234 5678" value={newUser.phone} onChange={handleInputChange}/>
+                    <Input id="phone" placeholder="+56 9 1234 5678" value={newUser.phone} onChange={handleInputChange} disabled={isSubmitting}/>
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="role">Rol</Label>
-          <Select onValueChange={handleSelectChange('role')} value={newUser.role}>
+          <Select onValueChange={handleSelectChange('role')} value={newUser.role} disabled={isSubmitting}>
             <SelectTrigger>
               <SelectValue placeholder="Seleccione un rol" />
             </SelectTrigger>
@@ -450,7 +502,10 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit" onClick={handleCreateUser}>{editingUserId ? 'Guardar Cambios' : 'Crear Usuario'}</Button>
+              <Button type="submit" onClick={handleCreateUser} disabled={isSubmitting} className={isSubmitting ? 'opacity-70' : ''}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {editingUserId ? 'Guardar Cambios' : 'Crear Usuario'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -485,59 +540,132 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
             </TableRow>
           </TableHeader>
           <TableBody>
-            {currentUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell className="hidden sm:table-cell">{formatRut(user.rut || '')}</TableCell>
-                <TableCell className="font-medium">{user.name}</TableCell>
-                <TableCell className="hidden lg:table-cell">{user.gender}</TableCell>
-                <TableCell className="hidden md:table-cell">{user.email}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{user.role}</Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex justify-end">
-                    <AlertDialog>
-                        <DropdownMenu>
+            {loading && (
+              // render 5 skeleton rows matching columns
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={`skel-${i}`}>
+                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                  <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
+                </TableRow>
+              ))
+            )}
+
+            {!loading && currentUsers.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="hidden sm:table-cell">{formatRut(user.rut || '')}</TableCell>
+                  <TableCell className="font-medium">{user.name}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{user.gender}</TableCell>
+                  <TableCell className="hidden md:table-cell">{user.email}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{user.role}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-2">
+                      {/* Inline buttons for md+ (desktop) */}
+                      <div className="hidden md:flex items-center gap-2">
+                        {/* Icon-only edit button */}
+                        <Button size="icon" variant="ghost" aria-label={`Editar ${user.name}`} onClick={() => handleEditClick(user)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+
+                        {/* Icon-only delete: disabled/visually muted for admin roles */}
+                        {String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin' ? (
+                          <Button size="icon" variant="ghost" className="text-muted-foreground cursor-not-allowed" aria-label={`Eliminar ${user.name}`} onClick={(e) => e.preventDefault()}>
+                            <Trash2 className="h-4 w-4 opacity-50" />
+                          </Button>
+                        ) : (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="icon" variant="destructive" aria-label={`Eliminar ${user.name}`}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario y sus datos de nuestros servidores.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>Continuar</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+
+                      {/* Keep original dropdown for mobile (md:hidden -> visible on small screens) */}
+                      <div className="md:hidden">
+                        <AlertDialog>
+                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                              <Button aria-haspopup="true" size="icon" variant="ghost">
                                 <MoreHorizontal className="h-4 w-4" />
                                 <span className="sr-only">Toggle menu</span>
-                            </Button>
+                              </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
-                            <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Eliminar
+                              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
+                              {String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin' ? (
+                                <DropdownMenuItem className="text-muted-foreground cursor-not-allowed" onClick={(e) => e.preventDefault()}>
+                                  <Trash2 className="mr-2 h-4 w-4 opacity-50" />
+                                  No permitido
                                 </DropdownMenuItem>
-                            </AlertDialogTrigger>
+                              ) : (
+                                <AlertDialogTrigger asChild>
+                                  <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
+                                    <Trash2 className="mr-2 h-4 w-4" />Eliminar
+                                  </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                              )}
                             </DropdownMenuContent>
-                        </DropdownMenu>
-                        <AlertDialogContent>
+                          </DropdownMenu>
+                          <AlertDialogContent>
                             <AlertDialogHeader>
-                            <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                            <AlertDialogDescription>
+                              <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                              <AlertDialogDescription>
                                 Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario y sus datos de nuestros servidores.
-                            </AlertDialogDescription>
+                              </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>Continuar</AlertDialogAction>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>Continuar</AlertDialogAction>
                             </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
 
       <div className="grid gap-4 md:hidden mt-4">
-        {currentUsers.map((user) => (
+        {loading && (
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={`card-skel-${i}`}>
+              <CardHeader>
+                <CardTitle><Skeleton className="h-4 w-40" /></CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-4 w-20" />
+              </CardContent>
+            </Card>
+          ))
+        )}
+
+        {!loading && currentUsers.map((user) => (
             <Card key={user.id}>
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between">
@@ -553,12 +681,19 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
-                                <AlertDialogTrigger asChild>
+                                {String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin' ? (
+                                  <DropdownMenuItem className="text-muted-foreground cursor-not-allowed" onClick={(e) => e.preventDefault()}>
+                                    <Trash2 className="mr-2 h-4 w-4 opacity-50" />
+                                    No permitido
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <AlertDialogTrigger asChild>
                                     <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                         <Trash2 className="mr-2 h-4 w-4" />
                                         Eliminar
                                     </DropdownMenuItem>
-                                </AlertDialogTrigger>
+                                  </AlertDialogTrigger>
+                                )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             <AlertDialogContent>
@@ -570,7 +705,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>Continuar</AlertDialogAction>
+                <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>Continuar</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>

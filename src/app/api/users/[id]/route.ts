@@ -99,6 +99,13 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   try {
     const { id } = params
     const supabase = await createServerClient()
+    // Prevent deletion of admin users: check role name
+    const { data: existing, error: fetchErr } = await supabase.from('usuarios').select('id, rol:rol_id(nombre_rol)').eq('id', id).limit(1).maybeSingle()
+    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
+  const roleName = (existing as any)?.rol?.nombre_rol || ''
+    if (String(roleName).toLowerCase() === 'administrador' || String(roleName).toLowerCase() === 'admin') {
+      return NextResponse.json({ error: 'Cannot delete administrator users' }, { status: 403 })
+    }
 
     // Try to delete from 'usuarios' first
     const { error: delError } = await supabase.from('usuarios').delete().eq('id', id)
