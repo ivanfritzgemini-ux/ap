@@ -136,6 +136,11 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
     return () => { mounted = false }
   }, [])
 
+  // When the search term changes, reset to the first page so results from all pages are visible
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
+
   const handleCreateUser = async () => {
     if (!newUser.firstName.trim()) return
 
@@ -309,6 +314,15 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
   }
 
   const handleDeleteUser = async (userId: string) => {
+    // client-side guard: prevent deleting admin users even if UI somehow triggers
+    const maybeUser = users.find(u => String(u.id) === String(userId))
+    if (maybeUser) {
+      const roleStr = String(maybeUser.role || '').toLowerCase()
+      if (roleStr === 'administrador' || roleStr === 'admin') {
+        toast({ title: 'Acción no permitida', description: 'No se puede eliminar a un usuario con rol Administrador.' })
+        return
+      }
+    }
     try {
       const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' })
       const json = await res.json()
@@ -328,7 +342,8 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
 
   const filteredUsers = users.filter(user =>
     (user.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.email ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+    (user.email ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.rut ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
   const sortedUsers = React.useMemo(() => {
     let sortableUsers = [...filteredUsers];
@@ -556,7 +571,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
 
             {!loading && currentUsers.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="hidden sm:table-cell">{formatRut(user.rut || '')}</TableCell>
+                  <TableCell className="hidden sm:table-cell"><span className="block max-w-[10rem] truncate">{formatRut(user.rut || '')}</span></TableCell>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell className="hidden lg:table-cell">{user.gender}</TableCell>
                   <TableCell className="hidden md:table-cell">{user.email}</TableCell>
@@ -568,16 +583,12 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                       {/* Inline buttons for md+ (desktop) */}
                       <div className="hidden md:flex items-center gap-2">
                         {/* Icon-only edit button */}
-                        <Button size="icon" variant="ghost" aria-label={`Editar ${user.name}`} onClick={() => handleEditClick(user)}>
+                        <Button size="icon-sm" variant="ghost" aria-label={`Editar ${user.name}`} onClick={() => handleEditClick(user)} className="p-0">
                           <Edit className="h-4 w-4" />
                         </Button>
 
-                        {/* Icon-only delete: disabled/visually muted for admin roles */}
-                        {String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin' ? (
-                          <Button size="icon" variant="ghost" className="text-muted-foreground cursor-not-allowed" aria-label={`Eliminar ${user.name}`} onClick={(e) => e.preventDefault()}>
-                            <Trash2 className="h-4 w-4 opacity-50" />
-                          </Button>
-                        ) : (
+                        {/* Eliminar: NO mostrar la acción de eliminar si el usuario tiene rol Administrador */}
+                        {!(String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin') && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button size="icon" variant="destructive" aria-label={`Eliminar ${user.name}`}>
@@ -605,7 +616,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                         <AlertDialog>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button aria-haspopup="true" size="icon" variant="ghost">
+                              <Button aria-haspopup="true" size="icon-sm" variant="ghost" className="p-0">
                                 <MoreHorizontal className="h-4 w-4" />
                                 <span className="sr-only">Toggle menu</span>
                               </Button>
@@ -613,12 +624,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
-                              {String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin' ? (
-                                <DropdownMenuItem className="text-muted-foreground cursor-not-allowed" onClick={(e) => e.preventDefault()}>
-                                  <Trash2 className="mr-2 h-4 w-4 opacity-50" />
-                                  No permitido
-                                </DropdownMenuItem>
-                              ) : (
+                              {!(String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin') && (
                                 <AlertDialogTrigger asChild>
                                   <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                     <Trash2 className="mr-2 h-4 w-4" />Eliminar
@@ -650,7 +656,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
       </div>
 
       <div className="grid gap-4 md:hidden mt-4">
-        {loading && (
+  {loading && (
           Array.from({ length: 3 }).map((_, i) => (
             <Card key={`card-skel-${i}`}>
               <CardHeader>
@@ -665,28 +671,23 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
           ))
         )}
 
-        {!loading && currentUsers.map((user) => (
+    {!loading && currentUsers.map((user) => (
             <Card key={user.id}>
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                         <span className="text-base">{user.name}</span>
                          <AlertDialog>
                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                <Button aria-haspopup="true" size="icon" variant="ghost">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">Toggle menu</span>
-                                </Button>
-                                </DropdownMenuTrigger>
+                <DropdownMenuTrigger asChild>
+                <Button aria-haspopup="true" size="icon-sm" variant="ghost" className="p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">Toggle menu</span>
+                </Button>
+                </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
-                                {String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin' ? (
-                                  <DropdownMenuItem className="text-muted-foreground cursor-not-allowed" onClick={(e) => e.preventDefault()}>
-                                    <Trash2 className="mr-2 h-4 w-4 opacity-50" />
-                                    No permitido
-                                  </DropdownMenuItem>
-                                ) : (
+                                {!(String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin') && (
                                   <AlertDialogTrigger asChild>
                                     <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                         <Trash2 className="mr-2 h-4 w-4" />
@@ -712,7 +713,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                    <p><span className="font-semibold">RUT:</span> {formatRut(user.rut || '')}</p>
+                    <p><span className="font-semibold">RUT:</span> <span className="inline-block max-w-[12rem] truncate align-middle">{formatRut(user.rut || '')}</span></p>
                     <p><span className="font-semibold">Correo:</span> {user.email}</p>
                     <div className="flex items-center gap-2"><span className="font-semibold">Rol:</span> <Badge variant="outline">{user.role}</Badge></div>
                 </CardContent>

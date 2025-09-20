@@ -102,9 +102,28 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     // Prevent deletion of admin users: check role name
     const { data: existing, error: fetchErr } = await supabase.from('usuarios').select('id, rol:rol_id(nombre_rol)').eq('id', id).limit(1).maybeSingle()
     if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
-  const roleName = (existing as any)?.rol?.nombre_rol || ''
+    const roleName = (existing as any)?.rol?.nombre_rol || ''
+    const userRolId = (existing as any)?.rol_id || null
+
+    // Block deletion if role name explicitly matches admin
     if (String(roleName).toLowerCase() === 'administrador' || String(roleName).toLowerCase() === 'admin') {
       return NextResponse.json({ error: 'Cannot delete administrator users' }, { status: 403 })
+    }
+
+    // Additional safety: query roles table for any roles containing 'admin' and block if user's rol_id matches
+    try {
+      const { data: adminRoles } = await supabase.from('roles').select('id,nombre_rol').ilike('nombre_rol', '%admin%')
+      if (Array.isArray(adminRoles) && adminRoles.length > 0 && userRolId) {
+        const adminRoleIds = adminRoles.map((r: any) => String(r.id))
+        if (adminRoleIds.includes(String(userRolId))) {
+          console.warn(`Blocked deletion attempt for admin role id ${userRolId} on user ${id}`)
+          return NextResponse.json({ error: 'Cannot delete administrator users' }, { status: 403 })
+        }
+      }
+    } catch (e) {
+      // If roles query fails, don't allow delete by default to be safe
+      console.warn('Failed to verify admin roles before deletion, blocking delete for safety', e)
+      return NextResponse.json({ error: 'Could not verify role; deletion blocked' }, { status: 500 })
     }
 
     // Try to delete from 'usuarios' first
