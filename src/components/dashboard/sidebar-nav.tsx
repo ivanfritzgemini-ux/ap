@@ -39,7 +39,7 @@ const navItems = {
     { href: '#', label: 'Calificaciones', icon: ClipboardList },
     { href: '#', label: 'Asistencia', icon: ClipboardCheck },
     { href: '#', label: 'Reportes', icon: BarChart2 },
-    { href: '#', label: 'Establecimiento', icon: Building },
+  { href: '/dashboard/admin/establecimiento', label: 'Establecimiento', icon: Building },
     { href: '/dashboard/admin/parent-access', label: 'Acceso de Padres', icon: ShieldCheck },
     { href: '/dashboard/admin/view-users', label: 'Ver Usuarios DB', icon: Database },
   ],

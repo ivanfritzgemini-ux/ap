@@ -1,18 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { createServiceRoleClient, createServerClient } from '@/lib/supabase/server'
 
 export async function GET() {
   try {
     const supabase = await createServerClient()
-  const { data, error } = await supabase.from('tipo_educacion').select('id,codigo,nombre').order('nombre')
-    if (error) {
-      console.error('[api/tipo-educacion] supabase error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const { data, error } = await supabase.from('periodos_academicos').select('*').order('fecha_inicio')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ data })
   } catch (err: any) {
-    console.error('[api/tipo-educacion] unexpected error:', err)
-    return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 })
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
@@ -20,7 +16,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const svc = createServiceRoleClient()
-    const { data, error } = await svc.from('tipo_educacion').insert(body).select().single()
+    const { data, error } = await svc.from('periodos_academicos').insert(body).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ data }, { status: 201 })
   } catch (err: any) {
@@ -33,7 +29,7 @@ export async function PUT(req: Request) {
     const body = await req.json()
     if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     const svc = createServiceRoleClient()
-    const { data, error } = await svc.from('tipo_educacion').update(body).eq('id', body.id).select().single()
+    const { data, error } = await svc.from('periodos_academicos').update(body).eq('id', body.id).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ data })
   } catch (err: any) {
@@ -47,7 +43,7 @@ export async function DELETE(req: Request) {
     const id = url.searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     const svc = createServiceRoleClient()
-    const { error } = await svc.from('tipo_educacion').delete().eq('id', id)
+    const { error } = await svc.from('periodos_academicos').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   } catch (err: any) {
