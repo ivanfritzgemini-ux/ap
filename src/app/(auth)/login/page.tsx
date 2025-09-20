@@ -39,6 +39,26 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
     } else {
+      // On successful sign in, forward tokens to a server Route Handler so it can
+      // set httpOnly cookies (allowed server-side). This avoids cookie mutations
+      // from client-side contexts which Next.js forbids.
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_token: session?.access_token,
+            refresh_token: session?.refresh_token,
+            expires_at: session?.expires_at,
+          }),
+        });
+      } catch (e) {
+        // non-fatal; continue navigation even if server cookie set fails
+        // eslint-disable-next-line no-console
+        console.warn('Unable to set session cookies on server:', e);
+      }
+
       router.push("/dashboard");
       router.refresh();
     }

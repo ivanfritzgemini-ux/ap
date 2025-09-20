@@ -380,20 +380,22 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
       setCurrentPage((prev) => (prev < totalPages ? prev + 1 : prev));
     };
 
-    const requestSort = (key: SortKey) => {
-        let direction: 'ascending' | 'descending' = 'ascending';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
-        setSortConfig({ key, direction });
-    };
+  const requestSort = (key: SortKey) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
 
-    const getSortIndicator = (key: SortKey) => {
-        if (!sortConfig || sortConfig.key !== key) {
-            return <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />;
-        }
-        return <ArrowUpDown className="ml-2 h-4 w-4" />;
-    };
+  const getSortIndicator = (key: SortKey) => {
+    const isActive = !!sortConfig && sortConfig.key === key;
+    const isDescending = isActive && sortConfig!.direction === 'descending';
+    // rotate when descending for clearer visual cue
+    return (
+      <ArrowUpDown className={"ml-2 h-4 w-4 transition-transform " + (isDescending ? 'rotate-180' : 'rotate-0') + (isActive ? '' : ' opacity-50')} aria-hidden />
+    );
+  };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
@@ -530,21 +532,21 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
           <TableHeader>
             <TableRow>
               <TableHead className="hidden sm:table-cell">RUT</TableHead>
-              <TableHead>
-                 <Button variant="ghost" onClick={() => requestSort('name')}>
+              <TableHead aria-sort={sortConfig && sortConfig.key === 'name' ? (sortConfig.direction === 'ascending' ? 'ascending' : 'descending') : 'none'}>
+                 <Button variant="ghost" onClick={() => requestSort('name')} aria-pressed={!!(sortConfig && sortConfig.key === 'name')} aria-label="Ordenar por nombre">
                     Nombre
                     {getSortIndicator('name')}
                 </Button>
               </TableHead>
-              <TableHead className="hidden lg:table-cell">
-                 <Button variant="ghost" onClick={() => requestSort('gender')}>
+              <TableHead className="hidden lg:table-cell" aria-sort={sortConfig && sortConfig.key === 'gender' ? (sortConfig.direction === 'ascending' ? 'ascending' : 'descending') : 'none'}>
+                 <Button variant="ghost" onClick={() => requestSort('gender')} aria-pressed={!!(sortConfig && sortConfig.key === 'gender')} aria-label="Ordenar por sexo">
                     Sexo
                     {getSortIndicator('gender')}
                 </Button>
               </TableHead>
               <TableHead className="hidden md:table-cell">Correo</TableHead>
-              <TableHead>
-                 <Button variant="ghost" onClick={() => requestSort('role')}>
+              <TableHead aria-sort={sortConfig && sortConfig.key === 'role' ? (sortConfig.direction === 'ascending' ? 'ascending' : 'descending') : 'none'}>
+                 <Button variant="ghost" onClick={() => requestSort('role')} aria-pressed={!!(sortConfig && sortConfig.key === 'role')} aria-label="Ordenar por rol">
                     Rol
                     {getSortIndicator('role')}
                 </Button>

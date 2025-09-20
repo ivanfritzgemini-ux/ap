@@ -20,6 +20,12 @@ export function UserNav({ user }: UserNavProps) {
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    try {
+      // Inform server to clear session cookies
+      await fetch('/api/auth/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    } catch (e) {
+      // ignore
+    }
     router.push('/login');
     router.refresh();
   };

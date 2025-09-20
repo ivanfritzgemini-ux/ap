@@ -23,10 +23,27 @@ export async function createServerClient() {
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options })
+          try {
+            // Mutating cookies is only allowed inside Server Actions or Route Handlers.
+            // Wrap in try/catch to avoid crashing when code runs in a context where
+            // cookie mutations are not permitted (e.g., during SSR render).
+            cookieStore.set({ name, value, ...options })
+          } catch (e) {
+            // Log a helpful warning rather than throwing. For correct auth flows
+            // consider performing session cookie updates inside a Route Handler /
+            // Server Action as recommended by Next.js docs.
+            // https://nextjs.org/docs/app/api-reference/functions/cookies#options
+            // eslint-disable-next-line no-console
+            console.warn('[supabase] Unable to set cookie in this context:', e)
+          }
         },
         remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options })
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[supabase] Unable to remove cookie in this context:', e)
+          }
         },
       },
     }
