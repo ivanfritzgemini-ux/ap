@@ -318,7 +318,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
     const maybeUser = users.find(u => String(u.id) === String(userId))
     if (maybeUser) {
       const roleStr = String(maybeUser.role || '').toLowerCase()
-      if (roleStr === 'administrador' || roleStr === 'admin') {
+      if (String(maybeUser.role || '').trim().toLowerCase().includes('admin')) {
         toast({ title: 'Acción no permitida', description: 'No se puede eliminar a un usuario con rol Administrador.' })
         return
       }
@@ -588,7 +588,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                         </Button>
 
                         {/* Eliminar: NO mostrar la acción de eliminar si el usuario tiene rol Administrador */}
-                        {!(String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin') && (
+                        {!(String(user.role || '').trim().toLowerCase().includes('admin')) && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button size="icon" variant="destructive" aria-label={`Eliminar ${user.name}`}>
@@ -624,7 +624,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
-                              {!(String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin') && (
+                              {!(String(user.role || '').trim().toLowerCase().includes('admin')) && (
                                 <AlertDialogTrigger asChild>
                                   <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                     <Trash2 className="mr-2 h-4 w-4" />Eliminar
@@ -687,7 +687,7 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
-                                {!(String(user.role || '').toLowerCase() === 'administrador' || String(user.role || '').toLowerCase() === 'admin') && (
+                                {!(String(user.role || '').trim().toLowerCase().includes('admin')) && (
                                   <AlertDialogTrigger asChild>
                                     <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
                                         <Trash2 className="mr-2 h-4 w-4" />

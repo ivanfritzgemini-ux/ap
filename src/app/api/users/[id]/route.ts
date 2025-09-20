@@ -106,7 +106,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     const userRolId = (existing as any)?.rol_id || null
 
     // Block deletion if role name explicitly matches admin
-    if (String(roleName).toLowerCase() === 'administrador' || String(roleName).toLowerCase() === 'admin') {
+    if (String(roleName).trim().toLowerCase().includes('admin')) {
       return NextResponse.json({ error: 'Cannot delete administrator users' }, { status: 403 })
     }
 
