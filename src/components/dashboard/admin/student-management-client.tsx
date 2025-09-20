@@ -590,49 +590,49 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden md:table-cell">
+              <TableHead className="hidden md:table-cell w-24 px-2">
                 <Button variant="ghost" onClick={() => requestSort('registration_number')}>
-                    N° de Registro
+                    N° Reg.
                     {getSortIndicator('registration_number')}
                 </Button>
               </TableHead>
-              <TableHead className="hidden md:table-cell">
+              <TableHead className="hidden md:table-cell px-2">
                 <Button variant="ghost" onClick={() => requestSort('rut')}>
                     RUT
                     {getSortIndicator('rut')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="px-2">
                 <Button variant="ghost" onClick={() => requestSort('apellidos')}>
-                    Nombre del Alumno
+                    Alumno
                     {getSortIndicator('apellidos')}
                 </Button>
               </TableHead>
-              <TableHead className="hidden lg:table-cell">
+              <TableHead className="hidden lg:table-cell px-2">
                  <Button variant="ghost" onClick={() => requestSort('sexo')}>
                     Sexo
                     {getSortIndicator('sexo')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="px-2">
                 <Button variant="ghost" onClick={() => requestSort('curso')}>
                     Curso
                     {getSortIndicator('curso')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="px-2">
                 <Button variant="ghost" onClick={() => requestSort('enrollment_date')}>
-                    Fecha de Matrícula
+                    F. Matrícula
                     {getSortIndicator('enrollment_date')}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden lg:table-cell px-2">
                 <Button variant="ghost" onClick={() => requestSort('fecha_retiro' as keyof Student)}>
-                  Fecha de Retiro
+                  F. Retiro
                   {/* No sort indicator by default for optional field */}
                 </Button>
               </TableHead>
-              <TableHead>
+              <TableHead className="px-2">
                 <span className="sr-only">Acciones</span>
               </TableHead>
             </TableRow>
@@ -640,17 +640,17 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <TableBody>
             {currentStudents.map((student) => (
               <TableRow key={student.id}>
-                <TableCell className="hidden md:table-cell">{student.registration_number}</TableCell>
-                <TableCell className="hidden md:table-cell">{student.rut}</TableCell>
-                <TableCell className="font-medium flex items-center gap-2">
+                <TableCell className="hidden md:table-cell px-2">{student.registration_number}</TableCell>
+                <TableCell className="hidden md:table-cell px-2">{student.rut}</TableCell>
+                <TableCell className="font-medium flex items-center gap-2 px-2">
                   <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
                   {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
                 </TableCell>
-                <TableCell className="hidden lg:table-cell">{student.sexo}</TableCell>
-                <TableCell>{student.curso}</TableCell>
-                <TableCell>{formatDate(student.enrollment_date)}</TableCell>
-                <TableCell>{formatDate(student.fecha_retiro)}</TableCell>
-                <TableCell>
+                <TableCell className="hidden lg:table-cell px-2">{student.sexo}</TableCell>
+                <TableCell className="px-2">{student.curso}</TableCell>
+                <TableCell className="px-2">{formatDate(student.enrollment_date)}</TableCell>
+                <TableCell className="hidden lg:table-cell px-2">{formatDate(student.fecha_retiro)}</TableCell>
+                <TableCell className="px-2">
                   <div className="flex justify-end">
                     <AlertDialog>
                         <DropdownMenu>
