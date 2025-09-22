@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Save, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useToast } from '@/hooks/use-toast'
 
 interface PeriodoAcademico {
   id: string
@@ -52,10 +53,12 @@ interface Calificacion {
   nota8: string
   nota9: string
   nota10: string
-  promedio: number
+  promedio: string
 }
 
 export default function CalificacionesPage() {
+  const { toast } = useToast()
+  
   const [periodos, setPeriodos] = useState<PeriodoAcademico[]>([])
   const [cursos, setCursos] = useState<Curso[]>([])
   const [asignaturas, setAsignaturas] = useState<Asignatura[]>([])
@@ -120,7 +123,7 @@ export default function CalificacionesPage() {
           nota8: '',
           nota9: '',
           nota10: '',
-          promedio: 0
+          promedio: '0.0'
         }
       })
       setCalificaciones(initialCalificaciones)
@@ -242,29 +245,29 @@ export default function CalificacionesPage() {
             nota8: '',
             nota9: '',
             nota10: '',
-            promedio: 0
+            promedio: '0.0'
           }
         })
         
         // Luego llenar con datos existentes
         result.data.forEach((cal: any) => {
           if (calificacionesExistentes[cal.estudiante_id]) {
-            // Las notas vienen como objeto JSON
-            const notasData = cal.notas || {}
+            // Las notas vienen como arreglo de PostgreSQL
+            const notasArray = cal.notas || []
             
             calificacionesExistentes[cal.estudiante_id] = {
               estudiante_id: cal.estudiante_id,
-              nota1: notasData.nota1 ? notasData.nota1.toString() : '',
-              nota2: notasData.nota2 ? notasData.nota2.toString() : '',
-              nota3: notasData.nota3 ? notasData.nota3.toString() : '',
-              nota4: notasData.nota4 ? notasData.nota4.toString() : '',
-              nota5: notasData.nota5 ? notasData.nota5.toString() : '',
-              nota6: notasData.nota6 ? notasData.nota6.toString() : '',
-              nota7: notasData.nota7 ? notasData.nota7.toString() : '',
-              nota8: notasData.nota8 ? notasData.nota8.toString() : '',
-              nota9: notasData.nota9 ? notasData.nota9.toString() : '',
-              nota10: notasData.nota10 ? notasData.nota10.toString() : '',
-              promedio: cal.promedio || 0
+              nota1: notasArray[0] ? Number(notasArray[0]).toFixed(1) : '',
+              nota2: notasArray[1] ? Number(notasArray[1]).toFixed(1) : '',
+              nota3: notasArray[2] ? Number(notasArray[2]).toFixed(1) : '',
+              nota4: notasArray[3] ? Number(notasArray[3]).toFixed(1) : '',
+              nota5: notasArray[4] ? Number(notasArray[4]).toFixed(1) : '',
+              nota6: notasArray[5] ? Number(notasArray[5]).toFixed(1) : '',
+              nota7: notasArray[6] ? Number(notasArray[6]).toFixed(1) : '',
+              nota8: notasArray[7] ? Number(notasArray[7]).toFixed(1) : '',
+              nota9: notasArray[8] ? Number(notasArray[8]).toFixed(1) : '',
+              nota10: notasArray[9] ? Number(notasArray[9]).toFixed(1) : '',
+              promedio: cal.promedio ? Number(cal.promedio).toFixed(1) : '0.0'
             }
           }
         })
@@ -286,7 +289,7 @@ export default function CalificacionesPage() {
             nota8: '',
             nota9: '',
             nota10: '',
-            promedio: 0
+            promedio: '0.0'
           }
         })
         setCalificaciones(initialCalificaciones)
@@ -308,7 +311,7 @@ export default function CalificacionesPage() {
           nota8: '',
           nota9: '',
           nota10: '',
-          promedio: 0
+          promedio: '0.0'
         }
       })
       setCalificaciones(initialCalificaciones)
@@ -362,7 +365,7 @@ export default function CalificacionesPage() {
         }).map(Number)
         
         const promedio = notas.length > 0 ? notas.reduce((sum, nota) => sum + nota, 0) / notas.length : 0
-        updated[estudianteId].promedio = Math.round(promedio * 10) / 10
+        updated[estudianteId].promedio = (Math.round(promedio * 10) / 10).toFixed(1)
         
         return updated
       })
@@ -399,7 +402,7 @@ export default function CalificacionesPage() {
       }).map(nota => parseFloat(nota.replace(',', '.')))
       
       const promedio = notas.length > 0 ? notas.reduce((sum, nota) => sum + nota, 0) / notas.length : 0
-      updated[estudianteId].promedio = Math.round(promedio * 10) / 10
+      updated[estudianteId].promedio = (Math.round(promedio * 10) / 10).toFixed(1)
       
       return updated
     })
@@ -407,6 +410,12 @@ export default function CalificacionesPage() {
 
   const handleSave = async () => {
     if (!selectedPeriodo || !selectedCurso || !selectedAsignatura) {
+      toast({
+        title: "Selección Incompleta",
+        description: "Debe seleccionar período, curso y asignatura",
+        variant: "destructive",
+        duration: 3000,
+      })
       setError('Debe seleccionar período, curso y asignatura')
       return
     }
@@ -447,18 +456,18 @@ export default function CalificacionesPage() {
         asignatura_id: selectedAsignatura,
         estudiante_id: cal.estudiante_id,
         notas: {
-          nota1: cal.nota1 ? Number(cal.nota1) : null,
-          nota2: cal.nota2 ? Number(cal.nota2) : null,
-          nota3: cal.nota3 ? Number(cal.nota3) : null,
-          nota4: cal.nota4 ? Number(cal.nota4) : null,
-          nota5: cal.nota5 ? Number(cal.nota5) : null,
-          nota6: cal.nota6 ? Number(cal.nota6) : null,
-          nota7: cal.nota7 ? Number(cal.nota7) : null,
-          nota8: cal.nota8 ? Number(cal.nota8) : null,
-          nota9: cal.nota9 ? Number(cal.nota9) : null,
-          nota10: cal.nota10 ? Number(cal.nota10) : null,
-        },
-        promedio: cal.promedio
+          nota1: cal.nota1 ? Number(Number(cal.nota1).toFixed(1)) : null,
+          nota2: cal.nota2 ? Number(Number(cal.nota2).toFixed(1)) : null,
+          nota3: cal.nota3 ? Number(Number(cal.nota3).toFixed(1)) : null,
+          nota4: cal.nota4 ? Number(Number(cal.nota4).toFixed(1)) : null,
+          nota5: cal.nota5 ? Number(Number(cal.nota5).toFixed(1)) : null,
+          nota6: cal.nota6 ? Number(Number(cal.nota6).toFixed(1)) : null,
+          nota7: cal.nota7 ? Number(Number(cal.nota7).toFixed(1)) : null,
+          nota8: cal.nota8 ? Number(Number(cal.nota8).toFixed(1)) : null,
+          nota9: cal.nota9 ? Number(Number(cal.nota9).toFixed(1)) : null,
+          nota10: cal.nota10 ? Number(Number(cal.nota10).toFixed(1)) : null,
+        }
+        // promedio se calcula automáticamente por el trigger de la BD
       }))
 
       // Enviar a la API de calificaciones en lote
@@ -473,17 +482,34 @@ export default function CalificacionesPage() {
       const result = await response.json()
       
       if (response.ok) {
-        alert(`Calificaciones guardadas exitosamente. ${result.success} registros procesados.${result.errorCount > 0 ? ` ${result.errorCount} errores encontrados.` : ''}`)
+        // Mostrar toast de éxito
+        toast({
+          title: "¡Calificaciones Guardadas!",
+          description: "Las calificaciones se han guardado correctamente.",
+          duration: 3000,
+        })
         
         if (result.errorCount > 0) {
           console.log('Errores encontrados:', result.errors)
         }
+
+        // Recargar la página después de un breve delay para que el usuario vea el toast
+        setTimeout(() => {
+          window.location.reload()
+        }, 4000)
+        
       } else {
         throw new Error(result.error || 'Error al guardar calificaciones')
       }
       
     } catch (error: any) {
       console.error('Error saving calificaciones:', error)
+      toast({
+        title: "Error al Guardar",
+        description: error.message || 'Error al guardar calificaciones',
+        variant: "destructive",
+        duration: 5000,
+      })
       setError(error.message || 'Error al guardar calificaciones')
     } finally {
       setSaving(false)
@@ -604,9 +630,10 @@ export default function CalificacionesPage() {
           <CardContent>
             <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-sm text-blue-800">
-                <strong>💡 Formato de Notas Chileno (1,0 - 7,0):</strong> Las notas se formatearán automáticamente al terminar de escribir. 
+                <strong>💡 Sistema de Calificaciones Chileno (1,0 - 7,0):</strong> 
+                Se pueden ingresar hasta 10 notas por estudiante. Las notas se formatearán automáticamente al terminar de escribir. 
                 Ejemplos: <span className="font-mono">43 → 4.3</span>, <span className="font-mono">57 → 5.7</span>, <span className="font-mono">7 → 7.0</span>. 
-                Para eliminar una nota, borre todo el contenido del campo.
+                El promedio se calcula automáticamente. Para eliminar una nota, borre todo el contenido del campo.
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -660,10 +687,10 @@ export default function CalificacionesPage() {
                         ))}
                         <TableCell className="text-center">
                           <Badge 
-                            variant={calificacion?.promedio >= 4.0 ? "default" : "destructive"}
+                            variant={parseFloat(calificacion?.promedio || '0') >= 4.0 ? "default" : "destructive"}
                             className="font-mono"
                           >
-                            {calificacion?.promedio > 0 ? calificacion.promedio.toFixed(1) : '--'}
+                            {calificacion?.promedio && parseFloat(calificacion.promedio) > 0 ? calificacion.promedio : '--'}
                           </Badge>
                         </TableCell>
                       </TableRow>
