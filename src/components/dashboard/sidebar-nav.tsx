@@ -36,7 +36,7 @@ const navItems = {
     { href: '/dashboard/admin/students', label: 'Estudiantes', icon: GraduationCap },
     { href: '/dashboard/admin/teachers', label: 'Profesores', icon: Briefcase },
     { href: '/dashboard/admin/courses', label: 'Cursos', icon: Book },
-    { href: '#', label: 'Calificaciones', icon: ClipboardList },
+    { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
     { href: '#', label: 'Asistencia', icon: ClipboardCheck },
     { href: '#', label: 'Reportes', icon: BarChart2 },
   { href: '/dashboard/admin/establecimiento', label: 'Establecimiento', icon: Building },
@@ -46,6 +46,7 @@ const navItems = {
     teacher: [
     { href: '/dashboard/teacher/attendance', label: 'Asistencia', icon: ClipboardCheck },
     { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: Book },
+    { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
   ],
   parent: [
     { href: '/dashboard/parent/overview', label: 'Resumen del Niño', icon: User },
