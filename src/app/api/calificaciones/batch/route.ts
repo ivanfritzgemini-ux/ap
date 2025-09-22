@@ -57,7 +57,7 @@ export async function POST(request: Request) {
         const { data: existing, error: checkError } = await supabase
           .from('calificaciones')
           .select('id')
-          .eq('periodo_id', periodo_id)
+          .eq('periodo_academico_id', periodo_id)
           .eq('curso_asignatura_id', curso_asignatura_id)
           .eq('estudiante_id', estudiante_id)
           .single()
@@ -71,12 +71,12 @@ export async function POST(request: Request) {
         }
 
         const calificacionData = {
-          periodo_id,
+          periodo_academico_id: periodo_id,
           curso_asignatura_id,
           estudiante_id,
           notas: notas, // Guardar como objeto JSON
           promedio,
-          updated_at: new Date().toISOString()
+          actualizado_en: new Date().toISOString()
         }
 
         let result
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
             .from('calificaciones')
             .insert({
               ...calificacionData,
-              created_at: new Date().toISOString()
+              creado_en: new Date().toISOString()
             })
             .select()
             .single()

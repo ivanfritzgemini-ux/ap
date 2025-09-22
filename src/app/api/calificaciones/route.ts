@@ -41,10 +41,10 @@ export async function GET(request: Request) {
         estudiante_id,
         notas,
         promedio,
-        created_at,
-        updated_at
+        creado_en,
+        actualizado_en
       `)
-      .eq('periodo_id', periodoId)
+      .eq('periodo_academico_id', periodoId)
       .eq('curso_asignatura_id', curso_asignatura_id)
 
     if (error) {
@@ -101,6 +101,12 @@ export async function POST(request: Request) {
       // Limpiar propiedades individuales
       delete body.nota1; delete body.nota2; delete body.nota3; delete body.nota4; delete body.nota5;
       delete body.nota6; delete body.nota7; delete body.nota8; delete body.nota9; delete body.nota10;
+    }
+
+    // Convertir periodo_id a periodo_academico_id si es necesario
+    if (body.periodo_id && !body.periodo_academico_id) {
+      body.periodo_academico_id = body.periodo_id
+      delete body.periodo_id
     }
     
     const { data, error } = await supabase
