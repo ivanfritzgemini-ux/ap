@@ -21,6 +21,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Users, Briefcase, ClipboardCheck, ArrowUpRight, ArrowUp, ArrowDown, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle } from "lucide-react"
+import { AsistenciaPerfectaCard } from '@/components/dashboard/asistencia-perfecta-card'
+import { ResumenAsistenciaCard } from '@/components/dashboard/resumen-asistencia-card'
+import { TendenciaAsistenciaCard } from '@/components/dashboard/tendencia-asistencia-card'
 import Logo from "@/components/logo"
 import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
 import { MonthlyMovementsWrapper } from '@/components/dashboard/monthly-movements-wrapper'
@@ -162,29 +165,46 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
                 </Table>
             </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-400">
-                    <CheckCircle className="h-5 w-5"/>
-                    Alumnos con Asistencia 100%
-                </CardTitle>
-                <CardDescription>Selecciona un mes para ver el listado y generar un informe para imprimir.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <Select defaultValue="junio">
-                    <SelectTrigger className="w-full md:w-[180px] mb-4">
-                        <SelectValue placeholder="Seleccione un mes" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="agosto">Agosto</SelectItem>
-                        <SelectItem value="julio">Julio</SelectItem>
-                        <SelectItem value="junio">Junio</SelectItem>
-                    </SelectContent>
-                </Select>
-                 <div className="border rounded-lg p-4 h-48 flex items-center justify-center">
-                    <p className="text-muted-foreground">No hay alumnos con 100% de asistencia para el mes seleccionado.</p>
-                </div>
-            </CardContent>
+        <AsistenciaPerfectaCard />
+     </div>
+     
+     {/* Nueva sección para tarjetas de asistencia */}
+     <div className="grid gap-6 lg:grid-cols-3">
+        <ResumenAsistenciaCard />
+        <TendenciaAsistenciaCard />
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-indigo-500" />
+              Asistencia por Día
+            </CardTitle>
+            <CardDescription>Registro de asistencia por día de la semana</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col space-y-3">
+              {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'].map((dia, index) => {
+                // Valores simulados para el gráfico
+                const porcentaje = [92, 88, 89, 85, 79][index];
+                return (
+                  <div key={dia} className="flex items-center gap-2">
+                    <div className="w-16 text-xs font-medium">{dia}</div>
+                    <div className="w-full bg-muted rounded-full h-2.5">
+                      <div 
+                        className={`h-2.5 rounded-full ${
+                          porcentaje >= 90 ? 'bg-green-500' :
+                          porcentaje >= 85 ? 'bg-green-400' :
+                          porcentaje >= 80 ? 'bg-yellow-500' :
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${porcentaje}%` }}
+                      ></div>
+                    </div>
+                    <div className="w-9 text-xs font-medium text-right">{porcentaje}%</div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
         </Card>
      </div>
   </div>
