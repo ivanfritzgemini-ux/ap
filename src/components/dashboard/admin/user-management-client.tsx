@@ -17,7 +17,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, Loader2, Edit } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, Loader2, Edit, KeyRound } from "lucide-react";
 import { users as mockUsers } from "@/lib/mock-data";
 import {
   Dialog,
@@ -104,6 +104,12 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [roles, setRoles] = React.useState<Array<{id:string,nombre_rol:string}>>([])
   const [sexos, setSexos] = React.useState<Array<{id:string,nombre:string}>>([])
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = React.useState(false);
+  const [resetPasswordUserId, setResetPasswordUserId] = React.useState<string | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = React.useState<User | null>(null);
+  const [newPassword, setNewPassword] = React.useState("");
+  const [useRutAsPassword, setUseRutAsPassword] = React.useState(true);
+  const [isResettingPassword, setIsResettingPassword] = React.useState(false);
 
   React.useEffect(() => {
     if (!isDialogOpen) {
@@ -312,6 +318,49 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
     setEditingUserId(user.id)
     setIsDialogOpen(true)
   }
+
+  const handleResetPassword = (user: User) => {
+    setResetPasswordUserId(user.id);
+    setResetPasswordUser(user);
+    setNewPassword("");
+    setUseRutAsPassword(true);
+    setIsResetPasswordDialogOpen(true);
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!resetPasswordUserId) return;
+    
+    setIsResettingPassword(true);
+    try {
+      const payload = {
+        newPassword: useRutAsPassword ? undefined : newPassword,
+        useRut: useRutAsPassword
+      };
+
+      const res = await fetch(`/api/users/${resetPasswordUserId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const json = await res.json();
+      
+      if (!res.ok) throw new Error(json?.error || 'Error resetting password');
+      
+      toast({ 
+        title: 'Contraseña Restablecida', 
+        description: useRutAsPassword 
+          ? 'La contraseña ha sido restablecida al RUT del usuario.' 
+          : 'La contraseña ha sido cambiada exitosamente.' 
+      });
+      
+      setIsResetPasswordDialogOpen(false);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message || 'No se pudo restablecer la contraseña' });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
   const handleDeleteUser = async (userId: string) => {
     // client-side guard: prevent deleting admin users even if UI somehow triggers
@@ -589,6 +638,11 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                           <Edit className="h-4 w-4" />
                         </Button>
 
+                        {/* Icon-only reset password button */}
+                        <Button size="icon-sm" variant="ghost" aria-label={`Restablecer contraseña de ${user.name}`} onClick={() => handleResetPassword(user)} className="p-0">
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
+
                         {/* Eliminar: NO mostrar la acción de eliminar si el usuario tiene rol Administrador */}
                         {!(String(user.role || '').trim().toLowerCase().includes('admin')) && (
                           <AlertDialog>
@@ -688,7 +742,14 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleEditClick(user)}>Editar</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditClick(user)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleResetPassword(user)}>
+                                  <KeyRound className="mr-2 h-4 w-4" />
+                                  Restablecer contraseña
+                                </DropdownMenuItem>
                                 {!(String(user.role || '').trim().toLowerCase().includes('admin')) && (
                                   <AlertDialogTrigger asChild>
                                     <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
@@ -746,6 +807,60 @@ export function UserManagementClient({ users: initialUsers }: { users?: User[] }
           </Button>
         </div>
       </div>
+
+      {/* Password Reset Dialog */}
+      <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Restablecer Contraseña</DialogTitle>
+            <DialogDescription>
+              {resetPasswordUser ? `Restablecer contraseña para ${resetPasswordUser.name}` : 'Restablecer contraseña de usuario'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="useRutAsPassword"
+                  checked={useRutAsPassword}
+                  onChange={(e) => setUseRutAsPassword(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                  disabled={isResettingPassword}
+                />
+                <Label htmlFor="useRutAsPassword">Usar RUT como contraseña</Label>
+              </div>
+              {!useRutAsPassword && (
+                <div className="grid gap-2 mt-2">
+                  <Label htmlFor="newPassword">Nueva contraseña</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    placeholder="Ingrese la nueva contraseña"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={isResettingPassword}
+                  />
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground mt-2">
+                {useRutAsPassword 
+                  ? "La contraseña se restablecerá al RUT del usuario." 
+                  : "Ingrese una nueva contraseña para este usuario."}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetPasswordDialogOpen(false)} disabled={isResettingPassword}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmResetPassword} disabled={!useRutAsPassword && newPassword.length < 6 || isResettingPassword} className={isResettingPassword ? 'opacity-70' : ''}>
+              {isResettingPassword ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -11,9 +11,11 @@ const resetPasswordSchema = z.object({
 // POST /api/users/[id]/reset-password -> Reset user password
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
+    // En Next.js 14+, debemos esperar a que se resuelvan los params
+    const params = await context.params
     const userId = params.id
     if (!userId) {
       return NextResponse.json(
