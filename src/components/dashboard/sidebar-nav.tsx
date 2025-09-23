@@ -19,7 +19,9 @@ import {
   ClipboardList,
   BarChart2,
   Building,
-  Database
+  Database,
+  BookOpen,
+  School
 } from "lucide-react";
 import type { Role } from '@/lib/types';
 
@@ -35,7 +37,7 @@ const navItems = {
     { href: '/dashboard/admin/users', label: 'Gestión de Usuarios', icon: Users },
     { href: '/dashboard/admin/students', label: 'Estudiantes', icon: GraduationCap },
     { href: '/dashboard/admin/teachers', label: 'Profesores', icon: Briefcase },
-    { href: '/dashboard/admin/courses', label: 'Cursos', icon: Book },
+    { href: '/dashboard/admin/courses', label: 'Cursos', icon: School },
     { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
     { href: '/dashboard/asistencia', label: 'Asistencia', icon: ClipboardCheck },
     { href: '#', label: 'Reportes', icon: BarChart2 },
@@ -45,7 +47,7 @@ const navItems = {
   ],
     teacher: [
     { href: '/dashboard/asistencia', label: 'Asistencia', icon: ClipboardCheck },
-    { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: Book },
+    { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: BookOpen },
     { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
   ],
   parent: [

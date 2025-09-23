@@ -16,7 +16,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, Upload, FileSpreadsheet, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -97,7 +97,7 @@ interface StudentManagementClientProps {
 
 export function StudentManagementClient({ students: initialStudents }: StudentManagementClientProps) {
     const { toast } = useToast();
-  const [students, setStudents] = React.useState<Student[]>(initialStudents);
+    const [students, setStudents] = React.useState<Student[]>(initialStudents);
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
     const [searchTerm, setSearchTerm] = React.useState("");
     const [sortConfig, setSortConfig] = React.useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({
@@ -106,6 +106,13 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     });
     const [currentPage, setCurrentPage] = React.useState(1);
     const itemsPerPage = 5;
+    
+    // Estado para el importador CSV
+    const [isImportDialogOpen, setIsImportDialogOpen] = React.useState(false);
+    const [csvFile, setCsvFile] = React.useState<File | null>(null);
+    const [isImporting, setIsImporting] = React.useState(false);
+    const [importResults, setImportResults] = React.useState<any | null>(null);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const [newStudent, setNewStudent] = React.useState(initialNewStudentState);
     const [editingStudentId, setEditingStudentId] = React.useState<string | null>(null);
@@ -436,16 +443,93 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         return <ArrowUpDown className="ml-2 h-4 w-4" />;
     };
 
-  const formatDate = (d?: string | null) => {
-    if (!d) return '-'
-    try {
-      // parseISO can throw if invalid; format to dd/MM/yyyy
-      const dt = parseISO(d)
-      return formatDateFn(dt, 'dd/MM/yyyy')
-    } catch (e) {
-      return d
+    const formatDate = (d?: string | null) => {
+      if (!d) return '-'
+      try {
+        // parseISO can throw if invalid; format to dd/MM/yyyy
+        const dt = parseISO(d)
+        return formatDateFn(dt, 'dd/MM/yyyy')
+      } catch (e) {
+        return d
+      }
     }
-  }
+    
+    // Funciones para manejar la importación CSV
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (!file.name.endsWith('.csv')) {
+          toast({
+            title: 'Formato no válido',
+            description: 'Por favor seleccione un archivo CSV',
+            variant: 'destructive'
+          });
+          e.target.value = '';
+          return;
+        }
+        setCsvFile(file);
+      }
+    };
+    
+    const handleImportCSV = async () => {
+      if (!csvFile) {
+        toast({
+          title: 'No se seleccionó archivo',
+          description: 'Por favor seleccione un archivo CSV para importar',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      setIsImporting(true);
+      setImportResults(null);
+      
+      try {
+        const formData = new FormData();
+        formData.append('file', csvFile);
+        
+        const response = await fetch('/api/students/import-csv', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Error al importar estudiantes');
+        }
+        
+        const results = await response.json();
+        setImportResults(results);
+        
+        // Actualizar la lista de estudiantes si hubo éxito
+        if (results.success > 0) {
+          await fetchList();
+        }
+        
+        toast({
+          title: 'Importación completada',
+          description: `${results.success} estudiantes importados, ${results.failed} fallidos`,
+        });
+        
+      } catch (error: any) {
+        toast({
+          title: 'Error al importar',
+          description: error.message || 'Ocurrió un error durante la importación',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsImporting(false);
+      }
+    };
+    
+    const resetImportDialog = () => {
+      setCsvFile(null);
+      setImportResults(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
     
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
@@ -469,7 +553,117 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex items-center gap-2">
+          <Dialog open={isImportDialogOpen} onOpenChange={(open) => {
+            setIsImportDialogOpen(open);
+            if (!open) resetImportDialog();
+          }}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1 shrink-0">
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Importar CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Importar Estudiantes desde CSV</DialogTitle>
+                <DialogDescription>
+                  Sube un archivo CSV con los datos de estudiantes para importar en masa.
+                </DialogDescription>
+              </DialogHeader>
+              
+              {!importResults ? (
+                <div className="grid gap-6">
+                  <div className="grid gap-2">
+                    <Label htmlFor="csv-file">Archivo CSV</Label>
+                    <Input 
+                      id="csv-file" 
+                      type="file" 
+                      accept=".csv" 
+                      onChange={handleFileChange}
+                      ref={fileInputRef}
+                      disabled={isImporting}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      El archivo debe tener las siguientes columnas: rut, nombres, apellidos, sexo, fecha_nacimiento (YYYY-MM-DD), email (opcional), curso (opcional)
+                    </p>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Button variant="outline" onClick={() => setIsImportDialogOpen(false)} disabled={isImporting}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleImportCSV} disabled={!csvFile || isImporting}>
+                      {isImporting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Importando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Importar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-6">
+                  <div className="grid gap-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <span className="font-medium">Estudiantes importados: {importResults.success}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-amber-500" />
+                        <span className="font-medium">Fallidos: {importResults.failed}</span>
+                      </div>
+                    </div>
+                    
+                    {importResults.failed > 0 && (
+                      <div className="bg-muted p-2 rounded-md max-h-48 overflow-auto">
+                        <p className="font-medium mb-2">Errores:</p>
+                        <ul className="text-sm space-y-1 pl-5 list-disc">
+                          {importResults.errors.map((error: any, idx: number) => (
+                            <li key={idx} className="text-red-500">
+                              Fila {error.row}: {error.rut} - {error.error}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {importResults.success > 0 && (
+                      <div className="bg-muted p-2 rounded-md max-h-48 overflow-auto">
+                        <p className="font-medium mb-2">Estudiantes procesados:</p>
+                        <ul className="text-sm space-y-1 pl-5 list-disc">
+                          {importResults.created.map((student: any, idx: number) => (
+                            <li key={idx} className="text-green-600">
+                              {student.nombre} ({student.rut}) - {student.status === 'creado' ? 'Creado' : 'Actualizado'}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Button variant="outline" onClick={resetImportDialog}>
+                      Importar otro archivo
+                    </Button>
+                    <Button onClick={() => setIsImportDialogOpen(false)}>
+                      Cerrar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+          
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-1 shrink-0 w-full md:w-auto">
                 <PlusCircle className="h-3.5 w-3.5" />
@@ -656,6 +850,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
       <div className="border rounded-lg mt-4 hidden md:block">
         <Table>
@@ -713,9 +908,11 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
               <TableRow key={student.id}>
                 <TableCell className="hidden md:table-cell px-2">{student.registration_number}</TableCell>
                 <TableCell className="hidden md:table-cell px-2">{formatRut(student.rut)}</TableCell>
-                <TableCell className="font-medium flex items-center gap-2 px-2">
-                  <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
-                  {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
+                <TableCell className="font-medium px-2">
+                  <div className="flex items-center gap-2 h-full py-2">
+                    <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
+                    {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
+                  </div>
                 </TableCell>
                 <TableCell className="hidden lg:table-cell px-2">{student.sexo}</TableCell>
                 <TableCell className="px-2">{student.curso}</TableCell>
@@ -768,10 +965,10 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <Card key={student.id}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span className="text-base flex items-center gap-2">
+                <div className="text-base flex items-center gap-2 py-1">
                   <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
                   {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
-                </span>
+                </div>
                 <AlertDialog>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

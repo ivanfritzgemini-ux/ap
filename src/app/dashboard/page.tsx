@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, Briefcase, ClipboardCheck, ArrowUpRight, ArrowUp, ArrowDown, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle } from "lucide-react"
+import { Users, Briefcase, ClipboardCheck, ArrowUpRight, ArrowUp, ArrowDown, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle, School } from "lucide-react"
 import { AsistenciaPerfectaCard } from '@/components/dashboard/asistencia-perfecta-card'
 import { ResumenAsistenciaCard } from '@/components/dashboard/resumen-asistencia-card'
 import { TendenciaAsistenciaCard } from '@/components/dashboard/tendencia-asistencia-card'
@@ -62,7 +62,7 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total de Cursos</CardTitle>
-          <Logo className="h-4 text-muted-foreground" />
+          <School className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{totalCourses}</div>
