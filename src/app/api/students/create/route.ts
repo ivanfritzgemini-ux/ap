@@ -24,6 +24,24 @@ export async function POST(req: Request) {
   const supabase = createServiceRoleClient()
 
   try {
+    // Check for duplicate registration number
+    const { data: existingRegistry, error: registryError } = await supabase
+      .from('estudiantes_detalles')
+      .select('nro_registro')
+      .eq('nro_registro', nro_registro)
+      .limit(1)
+      .maybeSingle()
+
+    if (registryError) {
+      console.error('[api/students/create] error checking existing registration:', registryError)
+      return NextResponse.json({ error: registryError.message }, { status: 500 })
+    }
+
+    if (existingRegistry) {
+      return NextResponse.json({ 
+        error: `Registration number ${nro_registro} already exists` 
+      }, { status: 409 })
+    }
     // 1) If usuario with same RUT exists, reuse its id
     const { data: existing, error: existErr } = await supabase.from('usuarios').select('id').eq('rut', rut).limit(1).maybeSingle()
     if (existErr) {

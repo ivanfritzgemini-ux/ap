@@ -93,6 +93,9 @@ export default {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
       },
+      fontSize: {
+        '2xs': '0.7rem',
+      },
     },
   },
   plugins: [require('tailwindcss-animate')],

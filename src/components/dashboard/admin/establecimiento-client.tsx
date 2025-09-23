@@ -275,8 +275,8 @@ export function EstablecimientoManagementClient({ establecimiento, periodos: ini
             {periodos.map((p: any) => (
               <div key={p.id} className="p-4 bg-muted rounded-md flex flex-col gap-2">
                 <div className="font-semibold">{p.nombre}</div>
-                <div className="text-sm">Inicio: {new Date(p.fecha_inicio).toLocaleDateString()}</div>
-                <div className="text-sm">Fin: {new Date(p.fecha_fin).toLocaleDateString()}</div>
+                <div className="text-sm">Inicio: {p.fecha_inicio.slice(0, 10)}</div>
+                <div className="text-sm">Fin: {p.fecha_fin.slice(0, 10)}</div>
                 <div className='flex gap-2 mt-2'>
                   <Button size='sm' variant='outline' onClick={() => openEditPeriodo(p)}>Editar</Button>
                   <Button size='sm' variant='destructive' onClick={() => openConfirmDelete('periodo', p.id, p.nombre)}>Eliminar</Button>

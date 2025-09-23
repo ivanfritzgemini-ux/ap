@@ -52,6 +52,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge"
 import { parseISO, format as formatDateFn } from 'date-fns'
+import { formatRut } from "@/lib/utils"
 
 type SortKey = keyof Student;
 
@@ -99,7 +100,10 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
   const [students, setStudents] = React.useState<Student[]>(initialStudents);
     const [isDialogOpen, setIsDialogOpen] = React.useState(false);
     const [searchTerm, setSearchTerm] = React.useState("");
-    const [sortConfig, setSortConfig] = React.useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>(null);
+    const [sortConfig, setSortConfig] = React.useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({
+        key: 'registration_number',
+        direction: 'ascending'
+    });
     const [currentPage, setCurrentPage] = React.useState(1);
     const itemsPerPage = 5;
 
@@ -159,19 +163,46 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     try {
       const res = await fetch('/api/students/last-registry');
       const json = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(json.error || 'Error fetching last registry');
+      }
+
       const last = json.last;
-      // Try to increment numeric suffix if possible
+      let nextNumber = 1;
+
       if (last) {
-        const num = parseInt(String(last).replace(/\D/g, ''), 10);
-        if (!isNaN(num)) {
-          setNewStudent(prev => ({ ...prev, registration_number: String(num + 1) }));
-          return;
+        // Parse the last registration number and increment
+        const lastNumber = parseInt(String(last), 10);
+        if (!isNaN(lastNumber)) {
+          nextNumber = lastNumber + 1;
         }
       }
-      // fallback
-      setNewStudent(prev => ({ ...prev, registration_number: '1' }));
+
+      // Ensure the generated number doesn't conflict with existing ones
+      let attempts = 0;
+      while (attempts < 100) { // Safety limit
+        const candidateNumber = String(nextNumber);
+        
+        // Check if this number already exists in current student list
+        const exists = students.some(s => s.registration_number === candidateNumber);
+        
+        if (!exists) {
+          setNewStudent(prev => ({ ...prev, registration_number: candidateNumber }));
+          return;
+        }
+        
+        nextNumber++;
+        attempts++;
+      }
+
+      // If we couldn't find a unique number, fallback
+      setNewStudent(prev => ({ ...prev, registration_number: String(Date.now()) }));
+      
     } catch (e) {
-      setNewStudent(prev => ({ ...prev, registration_number: '1' }));
+      console.error('Error fetching last registry:', e);
+      // Fallback: use timestamp-based number to ensure uniqueness
+      setNewStudent(prev => ({ ...prev, registration_number: String(Date.now()) }));
     }
   }
 
@@ -219,6 +250,30 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
       toast({ title: 'Campos requeridos', description: 'Nombres y apellidos son obligatorios.'});
       return;
     }
+
+    // Validate registration number for new students
+    if (!editingStudentId) {
+      if (!newStudent.registration_number.trim()) {
+        toast({ title: 'Número de registro requerido', description: 'El número de registro es obligatorio.' });
+        return;
+      }
+
+      // Check for duplicate registration numbers in current list
+      const isDuplicate = students.some(s => 
+        s.registration_number === newStudent.registration_number.trim()
+      );
+
+      if (isDuplicate) {
+        toast({ 
+          title: 'Número duplicado', 
+          description: 'Este número de registro ya existe. Se generará uno nuevo automáticamente.' 
+        });
+        // Regenerate registration number
+        await fetchLastRegistry();
+        return;
+      }
+    }
+
     try {
       const payload = {
         rut: newStudent.rut,
@@ -332,6 +387,15 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                 if (aValue === undefined || aValue === null) return 1;
                 if (bValue === undefined || bValue === null) return -1;
 
+                // Special handling for registration_number to sort numerically
+                if (sortConfig.key === 'registration_number') {
+                    const aNum = parseInt(String(aValue), 10);
+                    const bNum = parseInt(String(bValue), 10);
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return sortConfig.direction === 'ascending' ? aNum - bNum : bNum - aNum;
+                    }
+                }
+
                 if (aValue < bValue) {
                     return sortConfig.direction === 'ascending' ? -1 : 1;
                 }
@@ -423,7 +487,14 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                 <div className="space-y-4">
                     <div className="grid gap-2">
                         <Label htmlFor="registration-number">Número de Registro</Label>
-                        <Input id="registration-number" value={newStudent.registration_number} onChange={handleInputChange} readOnly={!!editingStudentId} />
+                        <Input 
+                          id="registration-number" 
+                          value={newStudent.registration_number} 
+                          onChange={handleInputChange} 
+                          readOnly 
+                          className="bg-muted"
+                          title="El número de registro se genera automáticamente"
+                        />
                     </div>
                      <div className="grid gap-2">
                         <Label htmlFor="rut">RUT</Label>
@@ -641,7 +712,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
             {currentStudents.map((student) => (
               <TableRow key={student.id}>
                 <TableCell className="hidden md:table-cell px-2">{student.registration_number}</TableCell>
-                <TableCell className="hidden md:table-cell px-2">{student.rut}</TableCell>
+                <TableCell className="hidden md:table-cell px-2">{formatRut(student.rut)}</TableCell>
                 <TableCell className="font-medium flex items-center gap-2 px-2">
                   <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
                   {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
@@ -738,7 +809,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <p><span className="font-semibold">N° de Registro:</span> {student.registration_number}</p>
-              <p><span className="font-semibold">RUT:</span> {student.rut}</p>
+              <p><span className="font-semibold">RUT:</span> {formatRut(student.rut)}</p>
               <p><span className="font-semibold">Curso:</span> {student.curso}</p>
               <p><span className="font-semibold">Fecha de Matrícula:</span> {formatDate(student.enrollment_date)}</p>
               <p><span className="font-semibold">Fecha de Retiro:</span> {formatDate(student.fecha_retiro)}</p>
