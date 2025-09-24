@@ -680,6 +680,58 @@ export default function AsistenciaMensualPage() {
     })
   }
 
+  // Función para seleccionar/deseleccionar toda una fila de estudiante
+  const toggleFilaCompleta = (estudianteId: string) => {
+    const estudiante = estudiantes.find(est => est.id === estudianteId)
+    if (!estudiante) return
+
+    // Obtener días hábiles donde el estudiante estuvo matriculado y la fecha está habilitada
+    const diasValidosParaEstudiante = diasDelMes.filter(dia => 
+      dia.esHabil && 
+      esFechaHabilitada(dia.dia, parseInt(selectedMes)) &&
+      estudianteMatriculadoEnFecha(estudiante, dia.dia, parseInt(selectedMes))
+    )
+
+    if (diasValidosParaEstudiante.length === 0) {
+      toast({
+        title: "Sin días válidos",
+        description: "No hay días hábiles válidos para este estudiante",
+        variant: "default",
+        duration: 3000,
+      })
+      return
+    }
+
+    // Verificar si todos los días válidos ya están marcados como presentes
+    const todosPresentes = diasValidosParaEstudiante.every(dia => 
+      asistencias[estudianteId]?.asistencias[dia.dia] === true
+    )
+
+    // Si todos están presentes, marcar como ausentes. Si no, marcar todos como presentes
+    const nuevoValor = !todosPresentes
+
+    setAsistencias(prev => ({
+      ...prev,
+      [estudianteId]: {
+        estudianteId: estudianteId,
+        asistencias: {
+          ...prev[estudianteId]?.asistencias,
+          ...diasValidosParaEstudiante.reduce((acc, dia) => {
+            acc[dia.dia] = nuevoValor
+            return acc
+          }, {} as Record<number, boolean>)
+        }
+      }
+    }))
+
+    toast({
+      title: nuevoValor ? "Marcado como presente" : "Marcado como ausente",
+      description: `${estudiante.name} - ${diasValidosParaEstudiante.length} día(s) ${nuevoValor ? 'presentes' : 'ausentes'}`,
+      variant: "default",
+      duration: 2000,
+    })
+  }
+
   // Función para seleccionar/deseleccionar toda una columna
   const toggleColumnaCompleta = (dia: number) => {
     // Verificar si la fecha está habilitada
@@ -1549,7 +1601,11 @@ export default function AsistenciaMensualPage() {
                         <TableRow key={estudiante.id} className="h-12">
                           <TableCell className="sticky left-0 bg-background border-r p-2">
                             <div className="flex items-center space-x-2">
-                              <span className="text-2xs font-bold text-muted-foreground min-w-[1.5rem]">
+                              <span 
+                                className="text-2xs font-bold text-muted-foreground min-w-[1.5rem] cursor-pointer hover:text-primary hover:bg-muted/50 rounded px-1 py-0.5 transition-colors duration-200" 
+                                onClick={() => toggleFilaCompleta(estudiante.id)}
+                                title="Clic para marcar/desmarcar toda la fila"
+                              >
                                 {indice + 1}
                               </span>
                               <div className="min-w-0 flex-1">
