@@ -16,7 +16,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, Upload, FileSpreadsheet, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, Upload, FileSpreadsheet, Loader2, AlertTriangle, CheckCircle2, Download, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 import { parseISO, format as formatDateFn } from 'date-fns'
 import { formatRut } from "@/lib/utils"
 
@@ -112,6 +113,9 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     const [csvFile, setCsvFile] = React.useState<File | null>(null);
     const [isImporting, setIsImporting] = React.useState(false);
     const [importResults, setImportResults] = React.useState<any | null>(null);
+    const [importProgress, setImportProgress] = React.useState(0);
+    const [importStatus, setImportStatus] = React.useState<string>('');
+    const [isDragOver, setIsDragOver] = React.useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const [newStudent, setNewStudent] = React.useState(initialNewStudentState);
@@ -471,6 +475,58 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         setCsvFile(file);
       }
     };
+
+    const validateFile = (file: File): boolean => {
+      if (!file.name.endsWith('.csv')) {
+        toast({
+          title: 'Formato no válido',
+          description: 'Por favor seleccione un archivo CSV',
+          variant: 'destructive'
+        });
+        return false;
+      }
+      return true;
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (validateFile(file)) {
+          setCsvFile(file);
+        }
+      }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+    };
+
+    const downloadSampleCSV = () => {
+      const sampleData = [
+        ['rut', 'nombres', 'apellidos', 'sexo', 'fecha_nacimiento', 'email', 'curso', 'fecha_matricula', 'nro_registro'],
+        ['12345678-9', 'Juan', 'Pérez', 'masculino', '15/03/2010', 'juan.perez@ejemplo.com', '8A', '15/03/2024', '1001'],
+        ['98765432-1', 'María', 'González', 'femenino', '22/07/2009', 'maria.gonzalez@ejemplo.com', '1 Medio A', '15/03/2024', '1002']
+      ];
+      
+      const csvContent = sampleData.map(row => row.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'plantilla_estudiantes.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    };
     
     const handleImportCSV = async () => {
       if (!csvFile) {
@@ -484,15 +540,28 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
       
       setIsImporting(true);
       setImportResults(null);
+      setImportProgress(0);
+      setImportStatus('Iniciando importación...');
       
       try {
+        // Estimate file size for progress tracking
+        const fileSizeKB = csvFile.size / 1024;
+        setImportStatus(`Procesando archivo (${fileSizeKB.toFixed(1)} KB)...`);
+        setImportProgress(10);
+        
         const formData = new FormData();
         formData.append('file', csvFile);
+        
+        setImportStatus('Validando datos y creando usuarios...');
+        setImportProgress(30);
         
         const response = await fetch('/api/students/import-csv', {
           method: 'POST',
           body: formData
         });
+        
+        setImportProgress(80);
+        setImportStatus('Procesando respuesta...');
         
         if (!response.ok) {
           const error = await response.json();
@@ -500,12 +569,19 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         }
         
         const results = await response.json();
+        setImportProgress(95);
+        setImportStatus('Finalizando...');
+        
         setImportResults(results);
         
         // Actualizar la lista de estudiantes si hubo éxito
         if (results.success > 0) {
+          setImportStatus('Actualizando lista de estudiantes...');
           await fetchList();
         }
+        
+        setImportProgress(100);
+        setImportStatus('¡Importación completada!');
         
         toast({
           title: 'Importación completada',
@@ -513,6 +589,8 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         });
         
       } catch (error: any) {
+        setImportProgress(0);
+        setImportStatus('Error en la importación');
         toast({
           title: 'Error al importar',
           description: error.message || 'Ocurrió un error durante la importación',
@@ -526,6 +604,9 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     const resetImportDialog = () => {
       setCsvFile(null);
       setImportResults(null);
+      setImportProgress(0);
+      setImportStatus('');
+      setIsDragOver(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -574,38 +655,125 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
               
               {!importResults ? (
                 <div className="grid gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="csv-file">Archivo CSV</Label>
-                    <Input 
-                      id="csv-file" 
-                      type="file" 
-                      accept=".csv" 
-                      onChange={handleFileChange}
-                      ref={fileInputRef}
-                      disabled={isImporting}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      El archivo debe tener las siguientes columnas: rut, nombres, apellidos, sexo, fecha_nacimiento (YYYY-MM-DD), email (opcional), curso (opcional)
-                    </p>
+                  <div className="grid gap-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="csv-file">Archivo CSV</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={downloadSampleCSV}
+                        className="text-xs gap-1 h-auto px-2 py-1"
+                      >
+                        <Download className="h-3 w-3" />
+                        Descargar plantilla
+                      </Button>
+                    </div>
+                    
+                    <div
+                      className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
+                        isDragOver 
+                          ? 'border-primary bg-primary/5' 
+                          : csvFile 
+                            ? 'border-green-500 bg-green-50' 
+                            : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                      } ${isImporting ? 'pointer-events-none opacity-50' : ''}`}
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                    >
+                      <input
+                        id="csv-file"
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileChange}
+                        ref={fileInputRef}
+                        disabled={isImporting}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      
+                      <div className="flex flex-col items-center justify-center text-center">
+                        {csvFile ? (
+                          <>
+                            <CheckCircle2 className="h-8 w-8 text-green-500 mb-2" />
+                            <p className="font-medium text-green-700">{csvFile.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {(csvFile.size / 1024).toFixed(1)} KB
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <FileSpreadsheet className={`h-8 w-8 mb-2 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+                            <p className="font-medium mb-1">
+                              {isDragOver ? 'Suelta el archivo aquí' : 'Arrastra tu archivo CSV aquí'}
+                            </p>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              o haz clic para seleccionar
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <p><strong>Columnas requeridas:</strong> rut, nombres, apellidos, sexo, nro_registro</p>
+                      <p><strong>Columnas opcionales:</strong> fecha_nacimiento (DD/MM/YYYY), email, curso, fecha_matricula</p>
+                      <p><strong>Formatos aceptados:</strong> .csv</p>
+                    </div>
                   </div>
                   
-                  <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => setIsImportDialogOpen(false)} disabled={isImporting}>
+                  {isImporting && (
+                    <div className="grid gap-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Progreso</span>
+                        <span className="font-medium">{importProgress}%</span>
+                      </div>
+                      <Progress value={importProgress} className="h-2" />
+                      <p className="text-sm text-muted-foreground text-center">
+                        {importStatus}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-col sm:flex-row gap-3 sm:justify-between">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsImportDialogOpen(false)} 
+                      disabled={isImporting}
+                      className="order-2 sm:order-1"
+                    >
                       Cancelar
                     </Button>
-                    <Button onClick={handleImportCSV} disabled={!csvFile || isImporting}>
-                      {isImporting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Importando...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="mr-2 h-4 w-4" />
-                          Importar
-                        </>
+                    <div className="flex gap-2 order-1 sm:order-2">
+                      {csvFile && !isImporting && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCsvFile(null);
+                            if (fileInputRef.current) {
+                              fileInputRef.current.value = '';
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Limpiar
+                        </Button>
                       )}
-                    </Button>
+                      <Button onClick={handleImportCSV} disabled={!csvFile || isImporting}>
+                        {isImporting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Importando...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Importar
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : (

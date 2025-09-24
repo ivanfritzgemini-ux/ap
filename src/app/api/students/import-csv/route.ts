@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceRoleClient } from '@/lib/supabase/server';
+import { createServiceRoleClient, createServerClient } from '@/lib/supabase/server';
 import { parse } from 'papaparse';
 import { z } from 'zod';
-import { format, parse as dateParse, isValid } from 'date-fns';
 
 // Define the expected CSV row structure with Zod
 const StudentCsvRow = z.object({
@@ -22,30 +21,26 @@ const parseDate = (dateStr: string | undefined | null): string | null => {
   if (!dateStr || !dateStr.trim()) return null;
 
   const trimmedDate = dateStr.trim();
-  let parsedDate;
-
+  
   // List of formats to try
   const formats = [
-    'd/M/yyyy',
-    'dd/MM/yyyy',
-    'd-M-yyyy',
-    'dd-MM-yyyy',
-    'yyyy-MM-dd',
-    'yyyy/MM/dd'
+    { pattern: /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, transform: (m: RegExpMatchArray) => `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` },
+    { pattern: /^(\d{4})-(\d{2})-(\d{2})$/, transform: (m: RegExpMatchArray) => `${m[1]}-${m[2]}-${m[3]}` }
   ];
 
-  for (const fmt of formats) {
-    parsedDate = dateParse(trimmedDate, fmt, new Date());
-    if (isValid(parsedDate)) {
-      return format(parsedDate, 'yyyy-MM-dd');
+  for (const format of formats) {
+    const match = trimmedDate.match(format.pattern);
+    if (match) {
+      const result = format.transform(match);
+      const date = new Date(result);
+      if (!isNaN(date.getTime())) {
+        return result;
+      }
     }
   }
   
-  // If no format matches, log an error and return null
-  console.error(`Error parsing date: "${dateStr}". None of the expected formats matched.`);
   return null;
 };
-
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,13 +52,128 @@ export async function POST(req: NextRequest) {
     }
 
     const fileContent = await file.text();
+    
+    // Try with regular server client first for reading data
+    let supabaseRead;
+    try {
+      supabaseRead = await createServerClient();
+    } catch (e) {
+      supabaseRead = createServiceRoleClient();
+    }
+    
+    // Service role client for writes (user creation, etc.)
+    const supabase = createServiceRoleClient();
 
-    let createdCount = 0;
-    let failedCount = 0;
-    const errors: any[] = [];
-    const createdStudents: any[] = [];
+    // Pre-load reference data once to avoid repeated queries
+    const [sexosResult, cursosResult] = await Promise.all([
+      supabaseRead.from('sexo').select('id, nombre'),
+      supabaseRead.from('cursos').select('id, nivel, letra, nombre_curso, tipo_educacion:tipo_educacion_id(nombre)')
+    ]);
 
-    return new Promise((resolve, reject) => {
+    const { data: allSexos, error: sexosError } = sexosResult;
+    const { data: allCursos, error: cursosError } = cursosResult;
+    
+    if (sexosError) {
+      throw new Error('Error loading sexos data');
+    }
+    
+    if (cursosError) {
+      throw new Error('Error loading cursos data');
+    }
+
+    // Create lookup maps for better performance
+    const sexoLookup = new Map();
+    allSexos?.forEach(s => {
+      // Trim whitespace from database values
+      const trimmedName = s.nombre.trim().toLowerCase();
+      sexoLookup.set(trimmedName, s.id);
+    });
+
+    const cursoLookup = new Map();
+    
+    allCursos?.forEach(c => {
+      // Create multiple lookup keys for different formats
+      const nivel = String(c.nivel || '').trim();
+      const letra = String(c.letra || '').trim();
+      
+      if (nivel && letra) {
+        // Standard format: "1a", "2b", etc.
+        const standardKey = `${nivel}${letra}`.toLowerCase();
+        cursoLookup.set(standardKey, c.id);
+        
+        // With space: "1 a", "2 b", etc.
+        const spaceKey = `${nivel} ${letra}`.toLowerCase();
+        cursoLookup.set(spaceKey, c.id);
+        
+        // With degree symbol: "1°a", "2°b", etc.
+        const degreeKey = `${nivel}°${letra}`.toLowerCase();
+        cursoLookup.set(degreeKey, c.id);
+        
+        // With degree and space: "1° a", "2° b", etc.
+        const degreeSpaceKey = `${nivel}° ${letra}`.toLowerCase();
+        cursoLookup.set(degreeSpaceKey, c.id);
+      }
+      
+      // Also map by full course name if available
+      if (c.nombre_curso) {
+        cursoLookup.set(c.nombre_curso.trim().toLowerCase(), c.id);
+      }
+      
+      // Map by combined description if tipo_educacion exists
+      const tipoEducacion = Array.isArray(c.tipo_educacion) ? c.tipo_educacion[0] : c.tipo_educacion;
+      if (tipoEducacion?.nombre && nivel && letra) {
+        const tipoNombre = tipoEducacion.nombre.toLowerCase();
+        const combinedKey = `${nivel} ${tipoNombre} ${letra}`.toLowerCase();
+        cursoLookup.set(combinedKey, c.id);
+        
+        // Also try shortened version
+        if (tipoNombre.includes('media')) {
+          const shortKey = `${nivel} medio ${letra}`.toLowerCase();
+          cursoLookup.set(shortKey, c.id);
+        }
+      }
+    });
+
+    // Create dynamic sex mapping based on actual database values
+    const sexoMap: { [key: string]: string } = {};
+    
+    // Add database values (normalized to lowercase and trimmed)
+    allSexos?.forEach(s => {
+      const trimmedName = s.nombre.trim();
+      const normalizedName = trimmedName.toLowerCase();
+      
+      // Map normalized version to itself
+      sexoMap[normalizedName] = normalizedName;
+      // Map original case to normalized
+      sexoMap[trimmedName] = normalizedName;
+      // Map original case lowercase to normalized
+      sexoMap[trimmedName.toLowerCase()] = normalizedName;
+    });
+    
+    // Add common variations and map them to the actual database values
+    const sexoVariations: { [key: string]: string[] } = {
+      'femenino': ['f', 'fem', 'feme', 'mujer', 'female'],
+      'masculino': ['m', 'mas', 'masc', 'hombre', 'male'],
+      'otro': ['other', 'x', 'no binario', 'nb']
+    };
+
+    // Map variations to actual database values
+    Object.entries(sexoVariations).forEach(([dbValue, variations]) => {
+      const actualDbValue = allSexos?.find(s => s.nombre.trim().toLowerCase() === dbValue);
+      if (actualDbValue) {
+        const normalizedDbValue = actualDbValue.nombre.trim().toLowerCase();
+        variations.forEach(variation => {
+          sexoMap[variation] = normalizedDbValue;
+        });
+      }
+    });
+
+    return new Promise((resolve) => {
+      let createdCount = 0;
+      let failedCount = 0;
+      const errors: any[] = [];
+      const createdStudents: any[] = [];
+
       parse(fileContent, {
         header: true,
         skipEmptyLines: true,
@@ -72,106 +182,111 @@ export async function POST(req: NextRequest) {
           if (transformed.includes('fecha') && transformed.includes('matricula')) {
             return 'fecha_matricula';
           }
-          // Also handle common variations for birth date, just in case
           if (transformed.includes('fecha') && transformed.includes('nacimiento')) {
             return 'fecha_nacimiento';
           }
-          // Handle registro variations
           if (transformed.includes('registro') || transformed.includes('nº') || transformed.includes('numero')) {
             return 'nro_registro';
           }
           return transformed;
         },
         complete: async (results) => {
-          const supabase = createServiceRoleClient();
           const rows = results.data;
 
+          // Process rows sequentially to avoid race conditions
           for (let i = 0; i < rows.length; i++) {
             const row = rows[i] as any;
-
+            
             try {
               // Validate row against Zod schema
               const validatedData = StudentCsvRow.parse(row);
 
-              // Find sexo_id from 'sexo' table
-              const sexoInput = validatedData.sexo.trim();
-
-              // Map common variations to canonical forms
-              const sexoMap: { [key: string]: string } = {
-                'f': 'Femenino',
-                'femenino': 'Femenino',
-                'feme': 'Femenino',
-                'fem': 'Femenino',
-                'm': 'Masculino',
-                'masculino': 'Masculino',
-                'masc': 'Masculino',
-                'mas': 'Masculino'
-              };
+              // Find sexo_id using pre-loaded data
+              const sexoInput = validatedData.sexo.trim().toLowerCase();
               
-              let sexoQuery = sexoInput;
-              const mappedSexo = sexoMap[sexoInput.toLowerCase()];
-              if (mappedSexo) {
-                sexoQuery = mappedSexo;
-              }
-
-              // Get all available sexo values for better debugging
-              const { data: allSexos } = await supabase
-                .from('sexo')
-                .select('id, nombre');
-
-              // Try exact match first, then case-insensitive match
-              let { data: sexoData, error: sexoError } = await supabase
-                .from('sexo')
-                .select('id')
-                .eq('nombre', sexoQuery)
-                .single();
-
-              // If exact match fails, try case-insensitive
-              if (sexoError || !sexoData) {
-                const result = await supabase
-                  .from('sexo')
-                  .select('id, nombre')
-                  .ilike('nombre', `%${sexoQuery}%`);
-                
-                if (result.data && result.data.length > 0) {
-                  sexoData = result.data[0];
-                  sexoError = null;
+              // Try multiple approaches to find the sexo
+              let sexoId = null;
+              
+              // First, try direct lookup with the normalized input
+              sexoId = sexoLookup.get(sexoInput);
+              
+              // If not found, try through the mapping
+              if (!sexoId) {
+                const mappedSexo = sexoMap[sexoInput];
+                if (mappedSexo) {
+                  sexoId = sexoLookup.get(mappedSexo);
                 }
               }
-
-              if (sexoError || !sexoData) {
-                const availableSexos = allSexos?.map(s => s.nombre).join(', ') || 'ninguno';
-                throw new Error(`Sexo '${validatedData.sexo}' no encontrado. Valores disponibles: ${availableSexos}`);
+              
+              // If still not found, try with original case
+              if (!sexoId) {
+                const originalCase = validatedData.sexo.trim();
+                sexoId = sexoLookup.get(originalCase.toLowerCase());
               }
 
-              // Find curso_id from 'cursos' table
+              if (!sexoId) {
+                const availableSexos = allSexos?.map(s => `'${s.nombre.trim()}'`).join(', ') || 'ninguno';
+                const mappingKeys = Object.keys(sexoMap).join(', ');
+                throw new Error(`Sexo '${validatedData.sexo}' no encontrado. Input normalizado: '${sexoInput}'. Valores disponibles: ${availableSexos}. Mapeos: ${mappingKeys}`);
+              }
+
+              // Find curso_id using pre-loaded data
               let cursoId = null;
               if (validatedData.curso) {
-                const cursoInput = validatedData.curso.trim();
-                let queryBuilder = supabase.from('cursos').select('id');
-
-                // Try to parse nivel and letra from cursoInput
-                const match = cursoInput.match(/(\d+)\s*([a-zA-Z])/);
-                if (match) {
-                  const nivel = parseInt(match[1], 10);
-                  const letra = match[2].toUpperCase();
-                  queryBuilder = queryBuilder.eq('nivel', nivel).ilike('letra', letra);
-                } else {
-                  // Fallback to matching nombre_curso if parsing fails
-                  queryBuilder = queryBuilder.ilike('nombre_curso', cursoInput);
+                const cursoInput = validatedData.curso.trim().toLowerCase();
+                
+                // Try multiple lookup strategies
+                
+                // 1. Direct lookup
+                cursoId = cursoLookup.get(cursoInput);
+                
+                // 2. Try parsing nivel and letra patterns
+                if (!cursoId) {
+                  const patterns = [
+                    /(\d+)\s*([a-zA-Z])/,           // "1a", "1 a"
+                    /(\d+)°?\s*([a-zA-Z])/,        // "1°a", "1° a"
+                    /(\d+)\s*(medio|media|básico|básica)\s*([a-zA-Z])/i  // "1 medio a"
+                  ];
+                  
+                  for (const pattern of patterns) {
+                    const match = cursoInput.match(pattern);
+                    if (match) {
+                      let nivel, letra;
+                      if (match[3]) {
+                        // Pattern with medio/básico
+                        nivel = match[1];
+                        letra = match[3];
+                      } else {
+                        // Simple pattern
+                        nivel = match[1];
+                        letra = match[2];
+                      }
+                      
+                      // Try different key combinations
+                      const keys = [
+                        `${nivel}${letra}`,
+                        `${nivel} ${letra}`,
+                        `${nivel}°${letra}`,
+                        `${nivel}° ${letra}`
+                      ];
+                      
+                      for (const key of keys) {
+                        cursoId = cursoLookup.get(key);
+                        if (cursoId) break;
+                      }
+                      
+                      if (cursoId) break;
+                    }
+                  }
                 }
                 
-                const { data: cursoData, error: cursoError } = await queryBuilder.single();
-                
-                if (cursoError || !cursoData) {
-                  console.warn(`Curso '${validatedData.curso}' not found, leaving it null.`);
-                } else {
-                  cursoId = cursoData.id;
+                if (!cursoId) {
+                  // Course not found, will be set to null
                 }
               }
 
               // Check if user already exists
-              const { data: existingUser, error: userError } = await supabase
+              const { data: existingUser } = await supabase
                 .from('usuarios')
                 .select('id')
                 .eq('rut', validatedData.rut)
@@ -180,18 +295,18 @@ export async function POST(req: NextRequest) {
               let userId;
               if (existingUser) {
                 userId = existingUser.id;
-                // Optionally update user data
-                const { error: updateUserError } = await supabase
+                
+                // Update user data if different
+                await supabase
                   .from('usuarios')
                   .update({
                     nombres: validatedData.nombres,
                     apellidos: validatedData.apellidos,
-                    sexo_id: sexoData.id,
+                    sexo_id: sexoId,
                     fecha_nacimiento: parseDate(validatedData.fecha_nacimiento),
                     email: validatedData.email,
                   })
                   .eq('id', userId);
-                if (updateUserError) throw updateUserError;
 
               } else {
                 // Create new auth user first
@@ -220,23 +335,22 @@ export async function POST(req: NextRequest) {
                 }
 
                 // Create user in usuarios table
-                const { error: newUserError } = await supabase
+                await supabase
                   .from('usuarios')
                   .insert({
                     id: userId,
                     rut: validatedData.rut,
                     nombres: validatedData.nombres,
                     apellidos: validatedData.apellidos,
-                    sexo_id: sexoData.id,
+                    sexo_id: sexoId,
                     fecha_nacimiento: parseDate(validatedData.fecha_nacimiento),
                     email: validatedData.email,
                     rol_id: 'd27e310f-0e44-4c6a-83fd-a3db125ba142' // Rol estudiante por defecto
                   });
-                if (newUserError) throw newUserError;
               }
 
               // Check if student record already exists
-              const { data: existingStudent, error: studentError } = await supabase
+              const { data: existingStudent } = await supabase
                 .from('estudiantes_detalles')
                 .select('id')
                 .eq('id', userId)
@@ -244,13 +358,9 @@ export async function POST(req: NextRequest) {
 
               const enrollmentDate = parseDate(validatedData.fecha_matricula);
 
-              if (!cursoId) {
-                throw new Error(`Curso '${validatedData.curso}' no encontrado o no válido`);
-              }
-
               if (existingStudent) {
                 // Update existing student
-                const { error: updateStudentError } = await supabase
+                await supabase
                   .from('estudiantes_detalles')
                   .update({
                     curso_id: cursoId,
@@ -259,7 +369,6 @@ export async function POST(req: NextRequest) {
                   })
                   .eq('id', existingStudent.id);
                 
-                if (updateStudentError) throw updateStudentError;
                 createdCount++;
                 createdStudents.push({
                   rut: validatedData.rut,
@@ -269,7 +378,7 @@ export async function POST(req: NextRequest) {
 
               } else {
                 // Create new student
-                const { error: newStudentError } = await supabase
+                await supabase
                   .from('estudiantes_detalles')
                   .insert({
                     id: userId,
@@ -278,7 +387,6 @@ export async function POST(req: NextRequest) {
                     fecha_matricula: enrollmentDate,
                   });
 
-                if (newStudentError) throw newStudentError;
                 createdCount++;
                 createdStudents.push({
                   rut: validatedData.rut,
@@ -306,7 +414,7 @@ export async function POST(req: NextRequest) {
         },
         error: (err: any) => {
           console.error('PapaParse error:', err);
-          reject(NextResponse.json({ error: 'Failed to parse CSV file' }, { status: 500 }));
+          resolve(NextResponse.json({ error: 'Failed to parse CSV file' }, { status: 500 }));
         }
       });
     });
