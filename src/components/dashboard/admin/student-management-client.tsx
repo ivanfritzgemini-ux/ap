@@ -682,12 +682,11 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                     <div className="grid gap-2">
                         <Label htmlFor="registration-number">Número de Registro</Label>
                         <Input 
-                          id="registration-number" 
-                          value={newStudent.registration_number} 
-                          onChange={handleInputChange} 
-                          readOnly 
-                          className="bg-muted"
-                          title="El número de registro se genera automáticamente"
+                          id="registration_number"
+                          value={newStudent.registration_number}
+                          onChange={handleInputChange}
+                          placeholder="Sugerido automáticamente, puedes modificarlo"
+                          title="El número de registro se sugiere automáticamente, pero puedes modificarlo si es necesario"
                         />
                     </div>
                      <div className="grid gap-2">
