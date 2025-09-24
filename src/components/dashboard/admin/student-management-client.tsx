@@ -115,6 +115,8 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     const [importResults, setImportResults] = React.useState<any | null>(null);
     const [importProgress, setImportProgress] = React.useState(0);
     const [importStatus, setImportStatus] = React.useState<string>('');
+    const [totalStudents, setTotalStudents] = React.useState<number>(0);
+    const [processedStudents, setProcessedStudents] = React.useState<number>(0);
     const [isDragOver, setIsDragOver] = React.useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -541,27 +543,61 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
       setIsImporting(true);
       setImportResults(null);
       setImportProgress(0);
-      setImportStatus('Iniciando importación...');
+      setImportStatus('Preparando importación...');
       
       try {
-        // Estimate file size for progress tracking
-        const fileSizeKB = csvFile.size / 1024;
-        setImportStatus(`Procesando archivo (${fileSizeKB.toFixed(1)} KB)...`);
-        setImportProgress(10);
+        // First, analyze the CSV file to get row count
+        const fileText = await csvFile.text();
+        const lines = fileText.split('\n').filter(line => line.trim());
+        const totalRows = Math.max(0, lines.length - 1); // Subtract header row
+        
+        setTotalStudents(totalRows);
+        setProcessedStudents(0);
+        setImportStatus(`Archivo analizado: ${totalRows} estudiantes encontrados`);
+        setImportProgress(5);
+        
+        // Simulate realistic progress based on estimated processing time
+        let currentProgress = 5;
+        let simulatedProcessed = 0;
+        const progressInterval = setInterval(() => {
+          if (currentProgress < 85) {
+            // Simulate processing students
+            const increment = Math.random() * 8 + 2; // Random between 2-10%
+            currentProgress += increment;
+            
+            // Simulate processed students count
+            const newProcessed = Math.floor((currentProgress / 100) * totalRows);
+            simulatedProcessed = Math.min(newProcessed, totalRows);
+            setProcessedStudents(simulatedProcessed);
+            
+            setImportProgress(Math.min(currentProgress, 85));
+            
+            // Update status based on progress with student count
+            if (currentProgress < 20) {
+              setImportStatus(`Validando formato del archivo... (${simulatedProcessed}/${totalRows})`);
+            } else if (currentProgress < 40) {
+              setImportStatus(`Verificando datos de estudiantes... (${simulatedProcessed}/${totalRows})`);
+            } else if (currentProgress < 60) {
+              setImportStatus(`Creando usuarios en el sistema... (${simulatedProcessed}/${totalRows})`);
+            } else if (currentProgress < 80) {
+              setImportStatus(`Guardando información académica... (${simulatedProcessed}/${totalRows})`);
+            } else {
+              setImportStatus(`Finalizando procesamiento... (${simulatedProcessed}/${totalRows})`);
+            }
+          }
+        }, 400);
         
         const formData = new FormData();
         formData.append('file', csvFile);
-        
-        setImportStatus('Validando datos y creando usuarios...');
-        setImportProgress(30);
         
         const response = await fetch('/api/students/import-csv', {
           method: 'POST',
           body: formData
         });
         
-        setImportProgress(80);
-        setImportStatus('Procesando respuesta...');
+        clearInterval(progressInterval);
+        setImportProgress(90);
+        setImportStatus('Procesando resultados...');
         
         if (!response.ok) {
           const error = await response.json();
@@ -570,22 +606,30 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         
         const results = await response.json();
         setImportProgress(95);
-        setImportStatus('Finalizando...');
+        setImportStatus('Actualizando vista...');
         
         setImportResults(results);
         
         // Actualizar la lista de estudiantes si hubo éxito
         if (results.success > 0) {
-          setImportStatus('Actualizando lista de estudiantes...');
           await fetchList();
         }
         
         setImportProgress(100);
-        setImportStatus('¡Importación completada!');
+        setProcessedStudents(totalStudents);
+        setImportStatus(`¡Importación completada! ${results.success} estudiantes procesados correctamente`);
+        
+        // Keep the completed status for a moment
+        setTimeout(() => {
+          if (results.success > 0) {
+            setImportStatus(`✅ ${results.success} estudiantes importados${results.failed > 0 ? ` • ${results.failed} con errores` : ''}`);
+          }
+        }, 1000);
         
         toast({
           title: 'Importación completada',
-          description: `${results.success} estudiantes importados, ${results.failed} fallidos`,
+          description: `${results.success} estudiantes importados correctamente${results.failed > 0 ? `, ${results.failed} con errores` : ''}`,
+          duration: 5000,
         });
         
       } catch (error: any) {
@@ -606,6 +650,8 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
       setImportResults(null);
       setImportProgress(0);
       setImportStatus('');
+      setTotalStudents(0);
+      setProcessedStudents(0);
       setIsDragOver(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -723,15 +769,50 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                   </div>
                   
                   {isImporting && (
-                    <div className="grid gap-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Progreso</span>
-                        <span className="font-medium">{importProgress}%</span>
+                    <div className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20">
+                      <div className="grid gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            {importProgress === 100 ? (
+                              <CheckCircle2 className="h-6 w-6 text-green-500" />
+                            ) : (
+                              <Loader2 className="h-6 w-6 text-blue-500 animate-spin" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-sm">
+                                Importando estudiantes
+                                {totalStudents > 0 && (
+                                  <span className="text-muted-foreground ml-2">
+                                    ({processedStudents}/{totalStudents})
+                                  </span>
+                                )}
+                              </span>
+                              <span className="font-bold text-sm text-blue-600 dark:text-blue-400">
+                                {Math.round(importProgress)}%
+                              </span>
+                            </div>
+                            <Progress 
+                              value={importProgress} 
+                              className="h-3 shadow-sm transition-all duration-300"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 min-h-[24px]">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 animate-pulse">
+                            {importStatus}
+                          </p>
+                        </div>
+                        
+                        {importProgress > 0 && importProgress < 100 && (
+                          <div className="text-xs text-muted-foreground text-center">
+                            Por favor no cierres esta ventana mientras se completa la importación
+                          </div>
+                        )}
                       </div>
-                      <Progress value={importProgress} className="h-2" />
-                      <p className="text-sm text-muted-foreground text-center">
-                        {importStatus}
-                      </p>
                     </div>
                   )}
                   
