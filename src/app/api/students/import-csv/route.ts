@@ -13,6 +13,8 @@ const StudentCsvRow = z.object({
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   curso: z.string().optional(),
   fecha_matricula: z.string().optional(),
+  fecha_retiro: z.string().optional(),
+  motivo_retiro: z.string().optional(),
   nro_registro: z.string().min(1, 'Número de registro es requerido'),
 });
 
@@ -184,6 +186,12 @@ export async function POST(req: NextRequest) {
           }
           if (transformed.includes('fecha') && transformed.includes('nacimiento')) {
             return 'fecha_nacimiento';
+          }
+          if (transformed.includes('fecha') && transformed.includes('retiro')) {
+            return 'fecha_retiro';
+          }
+          if (transformed.includes('motivo') && transformed.includes('retiro')) {
+            return 'motivo_retiro';
           }
           if (transformed.includes('registro') || transformed.includes('nº') || transformed.includes('numero')) {
             return 'nro_registro';
@@ -357,6 +365,7 @@ export async function POST(req: NextRequest) {
                 .single();
 
               const enrollmentDate = parseDate(validatedData.fecha_matricula);
+              const retirementDate = parseDate(validatedData.fecha_retiro);
 
               if (existingStudent) {
                 // Update existing student
@@ -366,6 +375,8 @@ export async function POST(req: NextRequest) {
                     curso_id: cursoId,
                     nro_registro: validatedData.nro_registro,
                     fecha_matricula: enrollmentDate,
+                    fecha_retiro: retirementDate,
+                    motivo_retiro: validatedData.motivo_retiro || null,
                   })
                   .eq('id', existingStudent.id);
                 
@@ -385,6 +396,8 @@ export async function POST(req: NextRequest) {
                     curso_id: cursoId,
                     nro_registro: validatedData.nro_registro,
                     fecha_matricula: enrollmentDate,
+                    fecha_retiro: retirementDate,
+                    motivo_retiro: validatedData.motivo_retiro || null,
                   });
 
                 createdCount++;

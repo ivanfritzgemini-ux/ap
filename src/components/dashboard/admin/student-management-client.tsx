@@ -515,9 +515,10 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
 
     const downloadSampleCSV = () => {
       const sampleData = [
-        ['rut', 'nombres', 'apellidos', 'sexo', 'fecha_nacimiento', 'email', 'curso', 'fecha_matricula', 'nro_registro'],
-        ['12345678-9', 'Juan', 'Pérez', 'masculino', '15/03/2010', 'juan.perez@ejemplo.com', '8A', '15/03/2024', '1001'],
-        ['98765432-1', 'María', 'González', 'femenino', '22/07/2009', 'maria.gonzalez@ejemplo.com', '1 Medio A', '15/03/2024', '1002']
+        ['rut', 'nombres', 'apellidos', 'sexo', 'fecha_nacimiento', 'email', 'curso', 'fecha_matricula', 'fecha_retiro', 'motivo_retiro', 'nro_registro'],
+        ['12345678-9', 'Juan', 'Pérez', 'masculino', '15/03/2010', 'juan.perez@ejemplo.com', '8A', '15/03/2024', '', '', '1001'],
+        ['98765432-1', 'María', 'González', 'femenino', '22/07/2009', 'maria.gonzalez@ejemplo.com', '1 Medio A', '15/03/2024', '15/12/2024', 'Traslado de ciudad', '1002'],
+        ['11111111-1', 'Carlos', 'Mendoza', 'masculino', '10/05/2009', 'carlos.mendoza@ejemplo.com', '2B', '15/03/2024', '', '', '1003']
       ];
       
       const csvContent = sampleData.map(row => row.join(',')).join('\n');
@@ -763,7 +764,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                     
                     <div className="text-xs text-muted-foreground space-y-1">
                       <p><strong>Columnas requeridas:</strong> rut, nombres, apellidos, sexo, nro_registro</p>
-                      <p><strong>Columnas opcionales:</strong> fecha_nacimiento (DD/MM/YYYY), email, curso, fecha_matricula</p>
+                      <p><strong>Columnas opcionales:</strong> fecha_nacimiento (DD/MM/YYYY), email, curso, fecha_matricula, fecha_retiro (DD/MM/YYYY), motivo_retiro</p>
                       <p><strong>Formatos aceptados:</strong> .csv</p>
                     </div>
                   </div>
