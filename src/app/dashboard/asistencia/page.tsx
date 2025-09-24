@@ -776,6 +776,74 @@ export default function AsistenciaMensualPage() {
     })
   }
 
+  // Función para seleccionar/deseleccionar todos los estudiantes en todos los días válidos
+  const toggleTodosLosEstudiantes = () => {
+    // Obtener todos los días hábiles y habilitados
+    const diasValidos = diasDelMes.filter(dia => 
+      dia.esHabil && 
+      esFechaHabilitada(dia.dia, parseInt(selectedMes))
+    )
+
+    if (diasValidos.length === 0) {
+      toast({
+        title: "Sin días válidos",
+        description: "No hay días hábiles válidos para marcar asistencia",
+        variant: "default",
+        duration: 3000,
+      })
+      return
+    }
+
+    // Calcular el total de casillas que deberían estar marcadas
+    let totalCasillasEsperadas = 0
+    let totalCasilllasMarcadas = 0
+
+    estudiantes.forEach(estudiante => {
+      diasValidos.forEach(dia => {
+        if (estudianteMatriculadoEnFecha(estudiante, dia.dia, parseInt(selectedMes))) {
+          totalCasillasEsperadas++
+          if (asistencias[estudiante.id]?.asistencias[dia.dia] === true) {
+            totalCasilllasMarcadas++
+          }
+        }
+      })
+    })
+
+    // Si más del 50% está marcado, desmarcar todo; si no, marcar todo
+    const nuevoValor = totalCasilllasMarcadas < (totalCasillasEsperadas * 0.5)
+
+    setAsistencias(prev => {
+      const nuevasAsistencias = { ...prev }
+      
+      estudiantes.forEach(estudiante => {
+        if (!nuevasAsistencias[estudiante.id]) {
+          nuevasAsistencias[estudiante.id] = { estudianteId: estudiante.id, asistencias: {} }
+        }
+
+        diasValidos.forEach(dia => {
+          if (estudianteMatriculadoEnFecha(estudiante, dia.dia, parseInt(selectedMes))) {
+            nuevasAsistencias[estudiante.id] = {
+              ...nuevasAsistencias[estudiante.id],
+              asistencias: {
+                ...nuevasAsistencias[estudiante.id].asistencias,
+                [dia.dia]: nuevoValor
+              }
+            }
+          }
+        })
+      })
+      
+      return nuevasAsistencias
+    })
+
+    toast({
+      title: nuevoValor ? "Todos marcados como presentes" : "Todos desmarcados",
+      description: `${totalCasillasEsperadas} registros de asistencia ${nuevoValor ? 'marcados' : 'desmarcados'}`,
+      variant: "default",
+      duration: 3000,
+    })
+  }
+
   // Calcular estadísticas de asistencia
   const calcularEstadisticas = () => {
     const totalEstudiantes = estudiantes.length
@@ -1521,8 +1589,12 @@ export default function AsistenciaMensualPage() {
                 <Table className="w-full min-w-fit">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-24 lg:w-32 sticky left-0 bg-background text-2xs">
-                        Alumno
+                      <TableHead 
+                        className="w-24 lg:w-32 sticky left-0 bg-background text-xs cursor-pointer hover:bg-muted/50 transition-colors duration-200" 
+                        onClick={toggleTodosLosEstudiantes}
+                        title="Clic para marcar/desmarcar todos los estudiantes"
+                      >
+                        Nombre del Alumno
                       </TableHead>
                       {diasDelMes.map((dia) => {
                         // Obtener información de integridad para este día

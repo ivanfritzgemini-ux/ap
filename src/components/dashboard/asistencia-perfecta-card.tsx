@@ -181,10 +181,10 @@ export function AsistenciaPerfectaCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-green-600 dark:text-green-500">
           <CheckCircle className="h-5 w-5"/>
-          Alumnos con Asistencia 100%
+          Estudiantes con Asistencia Perfecta
         </CardTitle>
         <CardDescription>
-          Selecciona un mes para ver el listado y generar un informe para imprimir.
+          Lista de estudiantes con 100% de asistencia por mes. Incluye nombre, curso y días asistidos.
         </CardDescription>
       </CardHeader>
       <CardContent>

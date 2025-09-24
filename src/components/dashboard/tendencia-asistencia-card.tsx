@@ -35,14 +35,15 @@ export function TendenciaAsistenciaCard() {
       // const result = await response.json();
       // setData(result.data);
       
-      // Por ahora, simulamos datos de tendencia para 6 meses
+      // Datos más realistas de tendencia para el año académico 2024-2025
       const mesesSimulados: TendenciaAsistencia[] = [
-        { mes: 4, año: 2025, nombre_mes: 'Abril', porcentaje: 84, diferencia: -2 },
-        { mes: 5, año: 2025, nombre_mes: 'Mayo', porcentaje: 86, diferencia: 2 },
-        { mes: 6, año: 2025, nombre_mes: 'Junio', porcentaje: 82, diferencia: -4 },
-        { mes: 7, año: 2025, nombre_mes: 'Julio', porcentaje: 85, diferencia: 3 },
-        { mes: 8, año: 2025, nombre_mes: 'Agosto', porcentaje: 88, diferencia: 3 },
-        { mes: 9, año: 2025, nombre_mes: 'Septiembre', porcentaje: 85, diferencia: -3 },
+        { mes: 3, año: 2025, nombre_mes: 'Marzo', porcentaje: 92, diferencia: 0 },
+        { mes: 4, año: 2025, nombre_mes: 'Abril', porcentaje: 89, diferencia: -3 },
+        { mes: 5, año: 2025, nombre_mes: 'Mayo', porcentaje: 91, diferencia: 2 },
+        { mes: 6, año: 2025, nombre_mes: 'Junio', porcentaje: 88, diferencia: -3 },
+        { mes: 7, año: 2025, nombre_mes: 'Julio', porcentaje: 85, diferencia: -3 },
+        { mes: 8, año: 2025, nombre_mes: 'Agosto', porcentaje: 87, diferencia: 2 },
+        { mes: 9, año: 2025, nombre_mes: 'Septiembre', porcentaje: 89, diferencia: 2 },
       ];
       
       setData(mesesSimulados);

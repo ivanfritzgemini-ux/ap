@@ -76,11 +76,19 @@ export function EstudiantesPerfectos({ mes, año, estudiantes, isLoading = false
               {estudiantesPorCurso[cursoId]
                 .sort((a, b) => a.nombre.localeCompare(b.nombre)) // Ordenar alfabéticamente
                 .map((estudiante) => (
-                <li key={estudiante.id} className="text-sm flex items-center justify-between">
-                  <span>{estudiante.nombre}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {estudiante.dias_asistidos}/{estudiante.total_dias_obligatorios} días
-                  </span>
+                <li key={estudiante.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{estudiante.nombre}</span>
+                    <span className="text-xs text-muted-foreground">{estudiante.nombre_curso}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-green-600 bg-green-100 dark:bg-green-900/20 px-2 py-1 rounded-full">
+                      100%
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {estudiante.dias_asistidos}/{estudiante.total_dias_obligatorios}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>

@@ -106,25 +106,24 @@ export function GenderDonut() {
   }
 
   return (
-    <div className="flex items-center gap-4" style={{ position: 'relative' }}>
-      <div style={{ width: 180, height: 180, position: 'relative' }}>
+    <div className="flex flex-col items-center space-y-4">
+      <div style={{ width: 200, height: 200, position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               dataKey="value"
               nameKey="name"
-              innerRadius={52}
-              outerRadius={78}
-              paddingAngle={4}
+              innerRadius={60}
+              outerRadius={90}
+              paddingAngle={6}
               onMouseEnter={(_, index) => setHovered(data[index]?.name ?? null)}
               onMouseLeave={() => setHovered(null)}
             >
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} onClick={() => onClick(index === 0 ? 'female' : 'male')} />
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} onClick={() => onClick(index === 0 ? 'female' : 'male')} className="cursor-pointer hover:opacity-80 transition-opacity" />
               ))}
             </Pie>
-            {/* Tooltip removed: rendering a compact hover box below the card for better readability */}
           </PieChart>
         </ResponsiveContainer>
 
@@ -132,42 +131,33 @@ export function GenderDonut() {
         <div style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           <div className="text-center">
               <div className="text-xs text-muted-foreground">Total</div>
-              <div className="text-lg font-semibold">{centerText}</div>
+              <div className="text-2xl font-bold">{total}</div>
+              <div className="text-xs text-muted-foreground">estudiantes</div>
             </div>
         </div>
       </div>
 
-      {/* Hover box moved into the right column so it appears to the right of the donut */}
-      <div style={{ height: 180, position: 'relative' }}>
-        {hovered ? (
-          <div style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 40 }}>
-            <CustomTooltip name={hovered} />
+      {/* Legend simplificada */}
+      <div className="flex flex-col space-y-2 w-full">
+        <div className="flex items-center justify-between cursor-pointer hover:bg-muted/50 p-2 rounded-md transition-colors" onClick={() => onClick('female')}>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ background: COLORS[0] }} />
+            <span className="text-sm font-medium">Mujeres</span>
           </div>
-        ) : null}
-
-        <div className="flex flex-col justify-between h-full">
-          <div>
-            <div className="flex items-center gap-2 text-xs cursor-pointer" onClick={() => onClick('female')}>
-              <span className="w-3 h-3 inline-block rounded-full" style={{ background: COLORS[0] }} />
-              <span className="font-medium">{total ? ((counts.women / total) * 100).toFixed(1) : '0.0'}%</span>
-              <span className="ml-2 font-semibold">Mujeres</span>
-              <span className="ml-2 text-muted-foreground">{counts.women}</span>
-            </div>
-            <div className="mt-1">
-              <GenderSparkline data={historyFor.women} color={COLORS[0]} />
-            </div>
+          <div className="text-right">
+            <div className="text-sm font-bold">{counts.women}</div>
+            <div className="text-xs text-muted-foreground">{total ? ((counts.women / total) * 100).toFixed(1) : '0.0'}%</div>
           </div>
-
-          <div>
-            <div className="flex items-center gap-2 text-xs cursor-pointer" onClick={() => onClick('male')}>
-              <span className="w-3 h-3 inline-block rounded-full" style={{ background: COLORS[1] }} />
-              <span className="font-medium">{total ? ((counts.men / total) * 100).toFixed(1) : '0.0'}%</span>
-              <span className="ml-2 font-semibold">Hombres</span>
-              <span className="ml-2 text-muted-foreground">{counts.men}</span>
-            </div>
-            <div className="mt-1">
-              <GenderSparkline data={historyFor.men} color={COLORS[1]} />
-            </div>
+        </div>
+        
+        <div className="flex items-center justify-between cursor-pointer hover:bg-muted/50 p-2 rounded-md transition-colors" onClick={() => onClick('male')}>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ background: COLORS[1] }} />
+            <span className="text-sm font-medium">Hombres</span>
+          </div>
+          <div className="text-right">
+            <div className="text-sm font-bold">{counts.men}</div>
+            <div className="text-xs text-muted-foreground">{total ? ((counts.men / total) * 100).toFixed(1) : '0.0'}%</div>
           </div>
         </div>
       </div>
