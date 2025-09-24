@@ -176,20 +176,39 @@ export async function getStudentsByCourse(courseId: string) {
       withdrawal_date: student.fecha_retiro,
       apellido: (usuario?.apellidos ?? '').toString(),
       nombres: (usuario?.nombres ?? '').toString(),
-      name: `${usuario?.apellidos ?? ''} ${usuario?.nombres ?? ''}`.trim(),
+      name: `${usuario?.apellidos ?? ''}, ${usuario?.nombres ?? ''}`.trim(),
     };
   });
 
-  // stable sort: compare apellido, then nombres, then enrollment_date (fecha_matricula)
+  // Custom sort: alphabetical by apellidos for enrollments up to 03/03/2025, then by enrollment date
+  const cutoffDate = new Date('2025-03-03');
+  
   normalized.sort((a, b) => {
-    const ap = a.apellido.localeCompare(b.apellido, 'es', { sensitivity: 'base' });
-    if (ap !== 0) return ap;
-    const nm = a.nombres.localeCompare(b.nombres, 'es', { sensitivity: 'base' });
-    if (nm !== 0) return nm;
-    // Compare dates safely: null/undefined move before/after? We'll treat null/undefined as larger (after)
-    const da = a.enrollment_date ? new Date(a.enrollment_date).getTime() : Number.POSITIVE_INFINITY;
-    const db = b.enrollment_date ? new Date(b.enrollment_date).getTime() : Number.POSITIVE_INFINITY;
-    return da - db;
+    const dateA = a.enrollment_date ? new Date(a.enrollment_date) : null;
+    const dateB = b.enrollment_date ? new Date(b.enrollment_date) : null;
+    
+    const isABeforeCutoff = dateA && dateA <= cutoffDate;
+    const isBBeforeCutoff = dateB && dateB <= cutoffDate;
+    
+    // Both enrolled before or on cutoff date - sort alphabetically by apellidos, then nombres
+    if (isABeforeCutoff && isBBeforeCutoff) {
+      const ap = a.apellido.localeCompare(b.apellido, 'es', { sensitivity: 'base' });
+      if (ap !== 0) return ap;
+      return a.nombres.localeCompare(b.nombres, 'es', { sensitivity: 'base' });
+    }
+    
+    // Both enrolled after cutoff date - sort by enrollment date
+    if (!isABeforeCutoff && !isBBeforeCutoff) {
+      const da = dateA ? dateA.getTime() : Number.POSITIVE_INFINITY;
+      const db = dateB ? dateB.getTime() : Number.POSITIVE_INFINITY;
+      return da - db;
+    }
+    
+    // One before cutoff, one after - those before cutoff come first
+    if (isABeforeCutoff && !isBBeforeCutoff) return -1;
+    if (!isABeforeCutoff && isBBeforeCutoff) return 1;
+    
+    return 0;
   });
 
   return normalized.map(item => ({

@@ -20,7 +20,7 @@ const formatDate = (dateString: string | null | undefined) => {
 };
 
 export default async function CourseDetailsPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+  const { id } = await params;
 
   const [course, students] = await Promise.all([
     getCourseDetails(id),
