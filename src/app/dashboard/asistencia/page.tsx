@@ -144,6 +144,10 @@ export default function AsistenciaMensualPage() {
   // Nuevo: estado para análisis de integridad de datos
   const [analisisIntegridad, setAnalisisIntegridad] = useState<any>(null)
   const [periodosAcademicos, setPeriodosAcademicos] = useState<PeriodoAcademico[]>([])
+  
+  // Estados para días bloqueados
+  const [motivosBloqueos, setMotivosBloqueos] = useState<Record<string, {motivos: string[], resoluciones: string[]}>>({})
+  const [loadingBloqueos, setLoadingBloqueos] = useState(false)
 
   // Función para obtener la fecha actual formateada
   const getFechaActualFormateada = () => {
@@ -178,12 +182,12 @@ export default function AsistenciaMensualPage() {
     }
   }, [selectedCurso, selectedMes, selectedAño])
 
-  // Calcular días del mes cuando se selecciona mes o año
+  // Calcular días del mes cuando se selecciona mes, año o curso (para incluir días bloqueados)
   useEffect(() => {
     if (selectedMes && selectedAño) {
       calcularDiasDelMes()
     }
-  }, [selectedMes, selectedAño])
+  }, [selectedMes, selectedAño, selectedCurso])
 
   // Cargar asistencia existente cuando se selecciona curso y mes
   useEffect(() => {
@@ -341,12 +345,87 @@ export default function AsistenciaMensualPage() {
     )
   }
 
-  const calcularDiasDelMes = () => {
+  // Función para obtener detalles de días bloqueados
+  const obtenerMotivosBloqueos = async (año: number, mes: number, diasEnMes: number) => {
+    if (!selectedCurso) return {}
+    
+    setLoadingBloqueos(true)
+    
+    try {
+      // Generar array de fechas del mes
+      const fechasDelMes = Array.from({length: diasEnMes}, (_, i) => {
+        const d = i + 1
+        return `${año}-${mes.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`
+      })
+      
+      // Obtener detalles de días bloqueados
+      const response = await fetch('/api/dias-bloqueados', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'get_details',
+          curso_id: selectedCurso,
+          fechas: fechasDelMes
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        return result.detalles || {}
+      }
+    } catch (error) {
+      console.error('Error obteniendo motivos de bloqueos:', error)
+    } finally {
+      setLoadingBloqueos(false)
+    }
+    
+    return {}
+  }
+
+  const calcularDiasDelMes = async () => {
     if (!selectedMes) return
 
     const año = parseInt(selectedAño) // Usar selectedAño en lugar de hardcodear
     const mes = parseInt(selectedMes)
     const diasEnMes = new Date(año, mes, 0).getDate()
+    
+    // Obtener días bloqueados para el mes actual
+    const primerDia = `${año}-${mes.toString().padStart(2, '0')}-01`
+    const ultimoDia = `${año}-${mes.toString().padStart(2, '0')}-${diasEnMes.toString().padStart(2, '0')}`
+    
+    let diasBloqueados: Set<string> = new Set()
+    
+    try {
+      // Verificar días bloqueados para el curso seleccionado
+      if (selectedCurso) {
+        const response = await fetch(`/api/dias-bloqueados/validar?cursoId=${selectedCurso}&fechas=${Array.from({length: diasEnMes}, (_, i) => {
+          const d = i + 1
+          return `${año}-${mes.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`
+        }).join(',')}`)
+        
+        if (response.ok) {
+          const result = await response.json()
+          if (result.validaciones) {
+            Object.entries(result.validaciones).forEach(([fecha, validacion]: [string, any]) => {
+              if (validacion.bloqueado) {
+                diasBloqueados.add(fecha)
+              }
+            })
+          }
+        }
+        
+        // Obtener motivos de los bloqueos
+        const motivos = await obtenerMotivosBloqueos(año, mes, diasEnMes)
+        setMotivosBloqueos(motivos)
+      } else {
+        // Limpiar motivos si no hay curso seleccionado
+        setMotivosBloqueos({})
+      }
+    } catch (error) {
+      console.error('Error loading dias bloqueados:', error)
+    }
     
     const dias: DiaAsistencia[] = []
     
@@ -358,13 +437,14 @@ export default function AsistenciaMensualPage() {
       const esFinDeSemana = diaSemana === 0 || diaSemana === 6
       const feriadosDelAño = getFeriadosDelAño(selectedAño)
       const esFeriadoOficial = feriadosDelAño[fechaString] !== undefined
+      const esDiaBloqueado = diasBloqueados.has(fechaString)
       
       // NUEVA LÓGICA: Si no está en período académico, marcar como feriado
       const dentroDelPeriodoAcademico = estaEnPeriodoAcademico(fechaString)
-      const esFeriado = esFeriadoOficial || !dentroDelPeriodoAcademico
+      const esFeriado = esFeriadoOficial || !dentroDelPeriodoAcademico || esDiaBloqueado
       
-      // Un día es hábil solo si: no es fin de semana, no es feriado oficial, y está dentro del período académico
-      const esHabil = !esFinDeSemana && !esFeriadoOficial && dentroDelPeriodoAcademico
+      // Un día es hábil solo si: no es fin de semana, no es feriado oficial, está dentro del período académico, y no está bloqueado
+      const esHabil = !esFinDeSemana && !esFeriadoOficial && dentroDelPeriodoAcademico && !esDiaBloqueado
       
       dias.push({
         dia,
@@ -1424,7 +1504,23 @@ export default function AsistenciaMensualPage() {
                                 {dia.dia}
                               </span>
                               {!dia.esHabil && (
-                                <X className="h-2.5 w-2.5 text-red-500" />
+                                <X 
+                                  className="h-2.5 w-2.5 text-red-500" 
+                                  title={(() => {
+                                    const fechaKey = `${selectedAño}-${selectedMes.toString().padStart(2, '0')}-${dia.dia.toString().padStart(2, '0')}`
+                                    const motivoInfo = motivosBloqueos[fechaKey]
+                                    if (motivoInfo) {
+                                      return `Día bloqueado:\nMotivo: ${motivoInfo.motivos.join(', ')}\nResolución: ${motivoInfo.resoluciones.join(', ')}`
+                                    }
+                                    if (dia.esFeriado) {
+                                      return 'Feriado nacional'
+                                    }
+                                    if (dia.esFinDeSemana) {
+                                      return 'Fin de semana'
+                                    }
+                                    return 'Día no hábil'
+                                  })()}
+                                />
                               )}
                               {esFechaHabilitada(dia.dia, parseInt(selectedMes)) && dia.esHabil && (
                                 <div className="h-1.5 w-1.5 rounded-full bg-green-500" 
