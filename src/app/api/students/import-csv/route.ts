@@ -194,21 +194,45 @@ export async function POST(req: NextRequest) {
                 if (updateUserError) throw updateUserError;
 
               } else {
-                // Create new user
-                const { data: newUser, error: newUserError } = await supabase
+                // Create new auth user first
+                const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+                  email: validatedData.email || `${validatedData.rut}@importado.local`,
+                  password: String(validatedData.rut),
+                  user_metadata: { nombres: validatedData.nombres, apellidos: validatedData.apellidos }
+                });
+                
+                if (authError) {
+                  // If email already exists, try to find the existing user
+                  if (authError.message && authError.message.includes('already been registered')) {
+                    const { data: listRes, error: listErr } = await supabase.auth.admin.listUsers({ 
+                      query: validatedData.email 
+                    } as any);
+                    if (listErr) throw new Error(`Error buscando usuario existente: ${listErr.message}`);
+                    const found = listRes?.users?.find((u: any) => u.email === validatedData.email);
+                    if (!found) throw new Error('No se pudo encontrar el usuario existente por email');
+                    userId = found.id;
+                  } else {
+                    throw new Error(`Error al crear usuario auth: ${authError.message}`);
+                  }
+                } else {
+                  userId = authUser.user?.id;
+                  if (!userId) throw new Error('No se pudo obtener el ID del usuario creado');
+                }
+
+                // Create user in usuarios table
+                const { error: newUserError } = await supabase
                   .from('usuarios')
                   .insert({
+                    id: userId,
                     rut: validatedData.rut,
                     nombres: validatedData.nombres,
                     apellidos: validatedData.apellidos,
                     sexo_id: sexoData.id,
                     fecha_nacimiento: parseDate(validatedData.fecha_nacimiento),
                     email: validatedData.email,
-                  })
-                  .select('id')
-                  .single();
+                    rol_id: 'd27e310f-0e44-4c6a-83fd-a3db125ba142' // Rol estudiante por defecto
+                  });
                 if (newUserError) throw newUserError;
-                userId = newUser.id;
               }
 
               // Check if student record already exists
