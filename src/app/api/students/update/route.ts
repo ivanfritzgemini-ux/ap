@@ -33,7 +33,7 @@ export async function PUT(req: Request) {
       fecha_matricula: fecha_matricula ?? undefined
     }
 
-    const { data: studentData, error: studentErr } = await supabase.from('estudiantes_detalles').update(studentPayload).eq('id', id).select('id').limit(1)
+    const { data: studentData, error: studentErr } = await supabase.from('estudiantes_detalles').update(studentPayload).eq('estudiante_id', id).eq('es_matricula_actual', true).select('estudiante_id').limit(1)
     if (studentErr) {
       console.error('[api/students/update] update estudiantes_detalles error:', studentErr)
       return NextResponse.json({ error: studentErr.message }, { status: 500 })

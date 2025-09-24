@@ -34,15 +34,19 @@ export async function fetchUsers(): Promise<User[]> {
 
 export async function getStudents(): Promise<Student[]> {
   const supabase = await createServerClient();
+  
+  // Obtener todas las matrículas (activas y retiradas) para mostrar el historial completo
   const { data, error } = await supabase
     .from('estudiantes_detalles')
     .select(`
       id,
+      estudiante_id,
       fecha_retiro,
       motivo_retiro,
       nro_registro,
       fecha_matricula,
-      usuarios (
+      es_matricula_actual,
+      usuarios!estudiante_id (
         rut,
         nombres,
         apellidos,
@@ -64,10 +68,27 @@ export async function getStudents(): Promise<Student[]> {
     return [];
   }
 
-  return data.map((student) => {
+  // Agrupar matrículas por estudiante y seleccionar la más relevante
+  const estudiantesMap = new Map<string, any[]>();
+  
+  data.forEach((matricula) => {
+    const estudianteId = matricula.estudiante_id;
+    if (!estudiantesMap.has(estudianteId)) {
+      estudiantesMap.set(estudianteId, []);
+    }
+    estudiantesMap.get(estudianteId)!.push(matricula);
+  });
+
+  return Array.from(estudiantesMap.entries()).map(([estudianteId, matriculas]) => {
+    // Priorizar matrícula activa, si no existe tomar la más reciente
+    const matriculaActiva = matriculas.find(m => m.es_matricula_actual);
+    const matriculaRelevante = matriculaActiva || matriculas.sort((a, b) => 
+      new Date(b.fecha_matricula).getTime() - new Date(a.fecha_matricula).getTime()
+    )[0];
+
     // related fields may be returned as arrays (due to PostgREST relation handling)
-    const usuariosRel = Array.isArray(student.usuarios) ? student.usuarios[0] : student.usuarios;
-    const cursosRel = Array.isArray(student.cursos) ? student.cursos[0] : student.cursos;
+    const usuariosRel = Array.isArray(matriculaRelevante.usuarios) ? matriculaRelevante.usuarios[0] : matriculaRelevante.usuarios;
+    const cursosRel = Array.isArray(matriculaRelevante.cursos) ? matriculaRelevante.cursos[0] : matriculaRelevante.cursos;
 
     // tipo_educacion may be an array; normalize to string
     const tipoObj = Array.isArray(cursosRel?.tipo_educacion) ? cursosRel.tipo_educacion[0] : cursosRel?.tipo_educacion
@@ -78,11 +99,11 @@ export async function getStudents(): Promise<Student[]> {
     }
 
     return {
-      id: student.id,
-      // include retiro fields if present
-      fecha_retiro: student.fecha_retiro ?? undefined,
-      motivo_retiro: student.motivo_retiro ?? undefined,
-      registration_number: student.nro_registro,
+      id: estudianteId,
+      // Si no tiene matrícula activa, mostrar datos de retiro de la matrícula más reciente
+      fecha_retiro: matriculaActiva ? undefined : matriculaRelevante.fecha_retiro ?? undefined,
+      motivo_retiro: matriculaActiva ? undefined : matriculaRelevante.motivo_retiro ?? undefined,
+      registration_number: matriculaRelevante.nro_registro,
       rut: usuariosRel?.rut ?? 'N/A',
       nombres: usuariosRel?.nombres ?? 'N/A',
       apellidos: usuariosRel?.apellidos ?? 'N/A',
@@ -91,7 +112,7 @@ export async function getStudents(): Promise<Student[]> {
   // @ts-ignore - dynamic relation shape from Supabase
   sexo: (Array.isArray(usuariosRel?.sexo) ? usuariosRel.sexo[0]?.nombre : usuariosRel?.sexo?.nombre) ?? 'N/A',
       curso: cursosRel ? `${cursosRel.nivel}º ${nombreAbreviado} ${cursosRel.letra}` : 'Sin curso',
-      enrollment_date: student.fecha_matricula,
+      enrollment_date: matriculaRelevante.fecha_matricula,
     };
   });
 }
@@ -142,15 +163,18 @@ export async function getStudentsByCourse(courseId: string) {
     .from('estudiantes_detalles')
     .select(`
       id,
+      estudiante_id,
       nro_registro,
       fecha_matricula,
       fecha_retiro,
-      usuarios (
+      es_matricula_actual,
+      usuarios!estudiante_id (
         nombres,
         apellidos
       )
     `)
     .eq('curso_id', courseId)
+    // Mostrar todos los estudiantes que han estado en este curso (activos y retirados) para historial de asistencia
     // Try to order at the DB level by related user fields, then by enrollment date.
     // Note: ordering on related tables may depend on PostgREST/Supabase behavior; we also apply
     // a JS-side stable sort below as a fallback to ensure the required composite ordering.
@@ -170,7 +194,7 @@ export async function getStudentsByCourse(courseId: string) {
     const usuario = Array.isArray(student.usuarios) ? student.usuarios[0] : student.usuarios;
     return {
       raw: student,
-      id: student.id,
+      id: student.estudiante_id, // Usar el ID del usuario
       registration_number: student.nro_registro,
       enrollment_date: student.fecha_matricula,
       withdrawal_date: student.fecha_retiro,

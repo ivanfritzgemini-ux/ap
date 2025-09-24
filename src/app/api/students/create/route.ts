@@ -24,11 +24,12 @@ export async function POST(req: Request) {
   const supabase = createServiceRoleClient()
 
   try {
-    // Check for duplicate registration number
+    // Check for duplicate registration number in active enrollments
     const { data: existingRegistry, error: registryError } = await supabase
       .from('estudiantes_detalles')
       .select('nro_registro')
       .eq('nro_registro', nro_registro)
+      .eq('es_matricula_actual', true)
       .limit(1)
       .maybeSingle()
 
@@ -128,10 +129,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3) Insert into estudiantes_detalles (id = usuario id)
+    // 3) Insert into estudiantes_detalles (nueva estructura)
     const { data: studentData, error: studentError } = await supabase
       .from('estudiantes_detalles')
-      .insert([{ id: userId, nro_registro, curso_id, fecha_matricula }])
+      .insert([{ estudiante_id: userId, nro_registro, curso_id, fecha_matricula, es_matricula_actual: true }])
 
     if (studentError) {
       console.error('[api/students/create] insert estudiantes_detalles error:', studentError)

@@ -53,7 +53,7 @@ export async function GET(req: Request, { params }: { params: { id?: string } })
 				.from('estudiantes_detalles')
 				.select('curso_id')
 				.eq('curso_id', id)
-				.is('fecha_retiro', null)
+				.eq('es_matricula_actual', true)
 
 			if (Array.isArray(studentsRows)) alumnos = studentsRows.length
 		} catch (e) {
@@ -121,11 +121,11 @@ export async function DELETE(req: Request, { params }: { params: { id?: string }
 		const supabase = await createServerClient()
 
 		// Count active students linked to this curso (fecha_retiro IS NULL)
-		const { data: studentsRows, error: studentsErr } = await supabase
+			const { data: studentsRows, error: studentsErr } = await supabase
 			.from('estudiantes_detalles')
 			.select('id')
 			.eq('curso_id', id)
-			.is('fecha_retiro', null)
+			.eq('es_matricula_actual', true)
 
 		if (studentsErr) {
 			console.error('[api/cursos/[id] DELETE] error counting students:', studentsErr)

@@ -24,11 +24,11 @@ export async function GET() {
 
     const cursos = Array.isArray(cursosData) ? cursosData : []
 
-    // 2) Fetch student counts grouped by curso_id (only active students: fecha_retiro IS NULL)
+    // 2) Fetch student counts grouped by curso_id (only active students: es_matricula_actual = true)
     const { data: studentsRows, error: studentsErr } = await supabase
       .from('estudiantes_detalles')
       .select('curso_id', { count: 'exact', head: false })
-      .is('fecha_retiro', null)
+      .eq('es_matricula_actual', true)
 
     if (studentsErr) {
       console.error('[api/cursos] supabase error fetching estudiantes_detalles counts:', studentsErr)

@@ -11,8 +11,9 @@ export async function GET(req: Request) {
     const supabase = await createServerClient()
     const { data, error } = await supabase
       .from('estudiantes_detalles')
-      .select('id, nro_registro, fecha_matricula, curso_id, usuarios(id, rut, nombres, apellidos, email, telefono, direccion, fecha_nacimiento, sexo_id)')
-      .eq('id', id)
+      .select('id, estudiante_id, nro_registro, fecha_matricula, curso_id, usuarios!estudiante_id(id, rut, nombres, apellidos, email, telefono, direccion, fecha_nacimiento, sexo_id)')
+      .eq('estudiante_id', id)
+      .eq('es_matricula_actual', true)
       .limit(1)
       .maybeSingle()
 
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
     // normalize shape: usuarios may be object or array
     const usuarios = Array.isArray((data as any).usuarios) ? (data as any).usuarios[0] : (data as any).usuarios
 
-    return NextResponse.json({ data: { id: data.id, nro_registro: data.nro_registro, fecha_matricula: data.fecha_matricula, curso_id: data.curso_id, usuarios } })
+    return NextResponse.json({ data: { id: data.estudiante_id, nro_registro: data.nro_registro, fecha_matricula: data.fecha_matricula, curso_id: data.curso_id, usuarios } })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 })
   }

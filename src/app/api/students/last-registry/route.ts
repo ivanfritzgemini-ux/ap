@@ -5,11 +5,12 @@ export async function GET() {
   const supabase = await createServerClient()
   
   try {
-    // Get all registration numbers to find the maximum numeric value
+    // Get all registration numbers from active enrollments to find the maximum numeric value
     const { data, error } = await supabase
       .from('estudiantes_detalles')
       .select('nro_registro')
       .not('nro_registro', 'is', null)
+      .eq('es_matricula_actual', true)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     

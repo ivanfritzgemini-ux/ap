@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     // Obtener estudiantes de este curso usando la vista/tabla correcta
     const { data: estudiantes, error: errorEstudiantes } = await supabase
       .from('estudiantes_detalles')
-      .select('id, fecha_matricula, fecha_retiro')
+      .select('id, estudiante_id, fecha_matricula, fecha_retiro')
       .eq('curso_id', cursoId);
       
     if (errorEstudiantes) {

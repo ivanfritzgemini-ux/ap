@@ -23,23 +23,25 @@ export async function GET(req: Request) {
     const from = new Date(Date.UTC(year, m, 1, 0, 0, 0)).toISOString()
     const to = new Date(Date.UTC(year, m + 1, 1, 0, 0, 0)).toISOString()
 
-    // Count ingresos: estudiantes_detalles with fecha_matricula in range
+    // Count ingresos: estudiantes_detalles with fecha_matricula in range (solo matrículas activas)
     const ingresosRes = await supabase
       .from('estudiantes_detalles')
       .select('id', { count: 'exact', head: false })
       .gte('fecha_matricula', from)
       .lt('fecha_matricula', to)
+      .eq('es_matricula_actual', true)
 
     if (ingresosRes.error) {
       return NextResponse.json({ error: ingresosRes.error.message }, { status: 500 })
     }
 
-    // Count retiros: estudiantes_detalles with fecha_retiro in range
+    // Count retiros: estudiantes_detalles with fecha_retiro in range (incluye tanto retiros como cambios de curso)
     const retirosRes = await supabase
       .from('estudiantes_detalles')
       .select('id', { count: 'exact', head: false })
       .gte('fecha_retiro', from)
       .lt('fecha_retiro', to)
+      .not('fecha_retiro', 'is', null)
 
     if (retirosRes.error) {
       return NextResponse.json({ error: retirosRes.error.message }, { status: 500 })

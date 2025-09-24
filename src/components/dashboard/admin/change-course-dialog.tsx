@@ -56,12 +56,13 @@ interface Course {
 
 interface HistorialCambio {
   id: string
-  fecha_cambio: string
-  motivo_cambio: string
-  observaciones: string
-  curso_anterior_nombre: string
-  curso_nuevo_nombre: string
-  created_at: string
+  fecha_evento: string
+  tipo_evento: 'Matrícula' | 'Retiro'
+  curso_nombre: string
+  motivo: string
+  es_actual: boolean
+  fecha_matricula: string
+  fecha_retiro?: string
 }
 
 interface ChangeCourseDialogProps {
@@ -241,7 +242,7 @@ export function ChangeCourseDialog({ open, onOpenChange, student, onSuccess }: C
               Cambio de Curso
             </DialogTitle>
             <DialogDescription>
-              Realizar cambio de curso para el estudiante seleccionado
+              Realizar cambio de curso registrando retiro del curso actual y nueva matrícula en curso destino
             </DialogDescription>
           </DialogHeader>
 
@@ -292,22 +293,39 @@ export function ChangeCourseDialog({ open, onOpenChange, student, onSuccess }: C
               {showHistorial && historial.length > 0 && (
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Historial de Cambios</CardTitle>
+                    <CardTitle className="text-base">Historial de Matrículas</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
                       {historial.map((h, index) => (
-                        <div key={h.id} className="border-l-2 border-blue-200 pl-4 pb-3">
-                          <div className="flex items-center gap-2 text-sm font-medium">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(h.fecha_cambio).toLocaleDateString('es-CL')}
+                        <div key={h.id} className={`border-l-2 pl-4 pb-3 ${
+                          h.es_actual ? 'border-green-400' : 'border-gray-300'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(h.fecha_evento).toLocaleDateString('es-CL')}
+                            </div>
+                            <div className="flex gap-2">
+                              <Badge variant={h.tipo_evento === 'Matrícula' ? 'default' : 'secondary'}>
+                                {h.tipo_evento}
+                              </Badge>
+                              {h.es_actual && (
+                                <Badge variant="outline" className="text-green-600 border-green-600">
+                                  Actual
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           <div className="text-sm text-muted-foreground mt-1">
-                            <div><strong>Cambio:</strong> {h.curso_anterior_nombre} → {h.curso_nuevo_nombre}</div>
-                            <div><strong>Motivo:</strong> {h.motivo_cambio}</div>
-                            {h.observaciones && (
-                              <div><strong>Observaciones:</strong> {h.observaciones}</div>
-                            )}
+                            <div><strong>Curso:</strong> {h.curso_nombre}</div>
+                            <div><strong>Detalle:</strong> {h.motivo}</div>
+                            <div className="text-xs mt-1">
+                              Matrícula: {new Date(h.fecha_matricula).toLocaleDateString('es-CL')}
+                              {h.fecha_retiro && (
+                                <span> • Retiro: {new Date(h.fecha_retiro).toLocaleDateString('es-CL')}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -470,7 +488,7 @@ export function ChangeCourseDialog({ open, onOpenChange, student, onSuccess }: C
               )}
               
               <p className="text-xs text-muted-foreground">
-                Esta acción actualizará el curso del estudiante y se registrará en el historial.
+                Esta acción registrará al estudiante como retirado del curso actual y creará una nueva matrícula en el curso destino. Se mantendrá el historial completo.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>

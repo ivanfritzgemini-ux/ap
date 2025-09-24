@@ -405,11 +405,11 @@ export default async function DashboardPage() {
     let normalizedCourses: any[] = []
 
     try {
-      // count students (estudiantes_detalles without fecha_retiro)
+      // count students (estudiantes_detalles with active enrollment)
       const studentsRes = await supabase
         .from('estudiantes_detalles')
         .select('id', { count: 'exact', head: false })
-        .is('fecha_retiro', null)
+        .eq('es_matricula_actual', true)
       totalStudents = (studentsRes.count ?? 0) as number
 
       // courses
@@ -421,7 +421,7 @@ export default async function DashboardPage() {
       // Build students-per-course counts: fetch estudiantes_detalles for active students
         try {
         // Fetch relevant fields to compute current active students per course
-        const { data: studentRows } = await supabase.from('estudiantes_detalles').select('curso_id,fecha_matricula,fecha_retiro')
+        const { data: studentRows } = await supabase.from('estudiantes_detalles').select('curso_id,fecha_matricula,fecha_retiro,es_matricula_actual')
         const countsMap: Record<string, number> = {}
         const prevCountsMap: Record<string, number> = {}
 
@@ -434,8 +434,8 @@ export default async function DashboardPage() {
           for (const r of studentRows as any[]) {
             const key = String(r.curso_id)
 
-            // current active students: no fecha_retiro
-            if (r.fecha_retiro == null) {
+            // current active students: es_matricula_actual = true
+            if (r.es_matricula_actual === true) {
               countsMap[key] = (countsMap[key] || 0) + 1
             }
 
@@ -474,7 +474,7 @@ export default async function DashboardPage() {
       }
 
       // enrollment rows for monthly aggregation
-  const enrollRes = await supabase.from('estudiantes_detalles').select('fecha_matricula')
+  const enrollRes = await supabase.from('estudiantes_detalles').select('fecha_matricula').eq('es_matricula_actual', true)
   const enrollRows = enrollRes.data as any
       // Heuristic for totalTeachers: query roles table for 'profesor' role id then count users
           try {
@@ -502,7 +502,7 @@ export default async function DashboardPage() {
 
       // activeClasses: approximate by distinct curso_id in estudiantes_detalles
       try {
-  const distinctCourses = (await supabase.from('estudiantes_detalles').select('curso_id', { count: 'exact', head: false })).data as any
+  const distinctCourses = (await supabase.from('estudiantes_detalles').select('curso_id', { count: 'exact', head: false }).eq('es_matricula_actual', true)).data as any
   activeClasses = Array.isArray(distinctCourses) ? distinctCourses.length : totalStudents
       } catch (e) {
         activeClasses = totalStudents

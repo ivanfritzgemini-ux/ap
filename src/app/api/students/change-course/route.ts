@@ -23,25 +23,28 @@ export async function POST(req: Request) {
 
     const supabase = createServiceRoleClient()
 
-    // 1. Verificar que el estudiante existe y está activo
+    // 1. Verificar que el estudiante existe y tiene matrícula activa
     const { data: estudiante, error: estudianteError } = await supabase
       .from('estudiantes_detalles')
       .select(`
         id,
+        estudiante_id,
         curso_id,
         nro_registro,
         fecha_retiro,
+        es_matricula_actual,
         usuarios (
           rut,
           nombres,
           apellidos
         )
       `)
-      .eq('id', estudiante_id)
+      .eq('estudiante_id', estudiante_id)
+      .eq('es_matricula_actual', true)
       .single()
 
     if (estudianteError || !estudiante) {
-      return NextResponse.json({ error: 'Estudiante no encontrado' }, { status: 404 })
+      return NextResponse.json({ error: 'Estudiante no encontrado o sin matrícula activa' }, { status: 404 })
     }
 
     if (estudiante.fecha_retiro) {
@@ -90,74 +93,56 @@ export async function POST(req: Request) {
       cursoAnterior = cursoAnt
     }
 
-    // 5. Crear el registro del historial de cambio de curso
-    const historialData = {
-      estudiante_id,
-      curso_anterior_id: estudiante.curso_id,
-      curso_nuevo_id: nuevo_curso_id,
-      fecha_cambio,
-      motivo_cambio,
-      observaciones,
-      created_at: new Date().toISOString()
-    }
-
-    // 6. Actualizar el curso del estudiante
-    const { error: updateError } = await supabase
+    // 5. Registrar retiro del curso anterior
+    const { error: retiroError } = await supabase
       .from('estudiantes_detalles')
       .update({ 
-        curso_id: nuevo_curso_id,
+        fecha_retiro: fecha_cambio,
+        motivo_retiro: `Cambio de curso: ${motivo_cambio}`,
+        es_matricula_actual: false,
         updated_at: new Date().toISOString()
       })
-      .eq('id', estudiante_id)
+      .eq('id', estudiante.id)
 
-    if (updateError) {
-      console.error('[change-course] Error actualizando estudiante:', updateError)
-      return NextResponse.json({ error: 'Error actualizando curso del estudiante' }, { status: 500 })
+    if (retiroError) {
+      console.error('[change-course] Error registrando retiro del curso anterior:', retiroError)
+      return NextResponse.json({ error: 'Error registrando retiro del curso anterior' }, { status: 500 })
     }
 
-    // 7. Crear tabla de historial si no existe (esto debería estar en migración)
-    const createHistorialTable = `
-      CREATE TABLE IF NOT EXISTS historial_cambios_curso (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        estudiante_id UUID NOT NULL,
-        curso_anterior_id UUID,
-        curso_nuevo_id UUID NOT NULL,
-        fecha_cambio DATE NOT NULL,
-        motivo_cambio VARCHAR(100) NOT NULL,
-        observaciones TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        created_by UUID,
-        
-        CONSTRAINT fk_historial_estudiante FOREIGN KEY (estudiante_id) 
-          REFERENCES estudiantes_detalles(id) ON DELETE CASCADE,
-        CONSTRAINT fk_historial_curso_anterior FOREIGN KEY (curso_anterior_id) 
-          REFERENCES cursos(id) ON DELETE SET NULL,
-        CONSTRAINT fk_historial_curso_nuevo FOREIGN KEY (curso_nuevo_id) 
-          REFERENCES cursos(id) ON DELETE CASCADE
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_historial_cambios_estudiante 
-        ON historial_cambios_curso(estudiante_id);
-      CREATE INDEX IF NOT EXISTS idx_historial_cambios_fecha 
-        ON historial_cambios_curso(fecha_cambio);
-    `
+    // 6. Crear nueva matrícula en curso destino
+    const { error: nuevaMatriculaError } = await supabase
+      .from('estudiantes_detalles')
+      .insert({
+        estudiante_id,
+        curso_id: nuevo_curso_id,
+        nro_registro: estudiante.nro_registro,
+        fecha_matricula: fecha_cambio,
+        es_matricula_actual: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
 
-    await supabase.rpc('exec_sql', { sql: createHistorialTable }).then(() => {}).catch(() => {})
-
-    // 8. Insertar en historial de cambios
-    const { error: historialError } = await supabase
-      .from('historial_cambios_curso')
-      .insert(historialData)
-
-    if (historialError) {
-      console.warn('[change-course] No se pudo crear historial:', historialError)
-      // No falla la operación si no se puede crear el historial
+    if (nuevaMatriculaError) {
+      console.error('[change-course] Error creando nueva matrícula:', nuevaMatriculaError)
+      // Rollback: reactivar matrícula anterior
+      await supabase
+        .from('estudiantes_detalles')
+        .update({ 
+          fecha_retiro: null,
+          motivo_retiro: null,
+          es_matricula_actual: true
+        })
+        .eq('id', estudiante.id)
+      return NextResponse.json({ error: 'Error creando nueva matrícula en curso destino' }, { status: 500 })
     }
 
-    // 9. Actualizar registros de asistencia futuros (opcional)
+    // 7. El historial ya se crea automáticamente con los registros de matrícula
+    // Los registros en estudiantes_detalles con fecha_retiro forman el historial completo
+    console.log(`[change-course] Cambio de curso completado para ${estudiante_id}: ${estudiante.curso_id} → ${nuevo_curso_id}`)
+
+    // 8. Actualizar registros de asistencia futuros (opcional)
     // Los registros de asistencia pasados mantienen el curso original
-    // Los futuros se asociarán al nuevo curso
-    const fechaCambioDate = new Date(fecha_cambio)
+    // Los futuros se asociarán al nuevo curso automáticamente por la nueva matrícula
     const { error: asistenciaError } = await supabase
       .from('asistencia')
       .update({ curso_id: nuevo_curso_id })
@@ -168,13 +153,14 @@ export async function POST(req: Request) {
       console.warn('[change-course] No se pudieron actualizar registros de asistencia futuros:', asistenciaError)
     }
 
-    // 10. Construir nombres de cursos para respuesta
+    // 9. Construir nombres de cursos para respuesta
     const cursoAnteriorNombre = cursoAnterior 
       ? `${cursoAnterior.nivel}° ${cursoAnterior.letra}` 
       : 'Sin curso anterior'
     
     const cursoNuevoNombre = `${cursoDestino.nivel}° ${cursoDestino.letra}`
-    const estudianteNombre = `${estudiante.usuarios?.nombres} ${estudiante.usuarios?.apellidos}`
+    const usuarioData = Array.isArray(estudiante.usuarios) ? estudiante.usuarios[0] : estudiante.usuarios
+    const estudianteNombre = `${usuarioData?.nombres} ${usuarioData?.apellidos}`
 
     return NextResponse.json({
       success: true,
@@ -183,7 +169,7 @@ export async function POST(req: Request) {
         estudiante: {
           id: estudiante_id,
           nombre: estudianteNombre,
-          rut: estudiante.usuarios?.rut,
+          rut: usuarioData?.rut,
           nro_registro: estudiante.nro_registro
         },
         cambio: {
@@ -223,32 +209,50 @@ export async function GET(req: Request) {
 
     const supabase = createServiceRoleClient()
 
-    const { data: historial, error } = await supabase
-      .from('historial_cambios_curso')
+    // Obtener todas las matrículas del estudiante ordenadas por fecha
+    const { data: matriculas, error } = await supabase
+      .from('estudiantes_detalles')
       .select(`
         id,
-        fecha_cambio,
-        motivo_cambio,
-        observaciones,
-        created_at,
-        curso_anterior:curso_anterior_id(nivel, letra),
-        curso_nuevo:curso_nuevo_id(nivel, letra)
+        curso_id,
+        fecha_matricula,
+        fecha_retiro,
+        motivo_retiro,
+        es_matricula_actual,
+        cursos!curso_id(
+          nivel,
+          letra,
+          tipo_educacion_id
+        )
       `)
       .eq('estudiante_id', estudiante_id)
-      .order('created_at', { ascending: false })
+      .order('fecha_matricula', { ascending: false })
 
     if (error) {
       console.error('[change-course] Error obteniendo historial:', error)
       return NextResponse.json({ error: 'Error obteniendo historial' }, { status: 500 })
     }
 
-    const historialFormateado = (historial || []).map(h => ({
-      ...h,
-      curso_anterior_nombre: h.curso_anterior 
-        ? `${h.curso_anterior.nivel}° ${h.curso_anterior.letra}`
-        : 'Sin curso anterior',
-      curso_nuevo_nombre: `${h.curso_nuevo.nivel}° ${h.curso_nuevo.letra}`
-    }))
+    // Formatear el historial basado en las matrículas
+    const historialFormateado = (matriculas || []).map((matricula, index) => {
+      const curso = Array.isArray(matricula.cursos) ? matricula.cursos[0] : matricula.cursos
+      
+      // Para simplificar, vamos a construir el nombre del curso básico
+      const cursoNombre = curso 
+        ? `${curso.nivel}° ${curso.letra}`
+        : 'Curso no disponible'
+
+      return {
+        id: matricula.id,
+        fecha_evento: matricula.fecha_retiro || matricula.fecha_matricula,
+        tipo_evento: matricula.fecha_retiro ? 'Retiro' : 'Matrícula',
+        curso_nombre: cursoNombre,
+        motivo: matricula.motivo_retiro || 'Matrícula inicial',
+        es_actual: matricula.es_matricula_actual,
+        fecha_matricula: matricula.fecha_matricula,
+        fecha_retiro: matricula.fecha_retiro
+      }
+    })
 
     return NextResponse.json({ data: historialFormateado })
 

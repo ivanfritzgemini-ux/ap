@@ -9,10 +9,13 @@ export async function POST(req: Request) {
     if (!fecha_retiro) return NextResponse.json({ error: 'Missing fecha_retiro' }, { status: 400 })
 
     const supabase = createServiceRoleClient()
-    const payload: any = { fecha_retiro: fecha_retiro }
+    const payload: any = { 
+      fecha_retiro: fecha_retiro, 
+      es_matricula_actual: false // Marcar como no activa
+    }
     if (typeof motivo_retiro !== 'undefined') payload.motivo_retiro = motivo_retiro
 
-    const { error } = await supabase.from('estudiantes_detalles').update(payload).eq('id', id)
+    const { error } = await supabase.from('estudiantes_detalles').update(payload).eq('estudiante_id', id).eq('es_matricula_actual', true)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     return NextResponse.json({ success: true })

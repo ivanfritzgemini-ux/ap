@@ -13,8 +13,11 @@ export async function GET(req: Request, { params }: { params: { id?: string } })
       .from('estudiantes_detalles')
       .select(`
         id,
+        estudiante_id,
         nro_registro,
-        usuarios (
+        fecha_retiro,
+        es_matricula_actual,
+        usuarios!estudiante_id (
           rut,
           nombres,
           apellidos,
@@ -22,7 +25,7 @@ export async function GET(req: Request, { params }: { params: { id?: string } })
         )
       `)
       .eq('curso_id', id)
-      .is('fecha_retiro', null) // Only active students
+      // Mostrar todos los estudiantes que han estado en este curso (activos y retirados)
       .order('nro_registro', { ascending: true });
 
     if (error) {
@@ -33,11 +36,13 @@ export async function GET(req: Request, { params }: { params: { id?: string } })
     const students = data.map(student => {
       const usuario = Array.isArray(student.usuarios) ? student.usuarios[0] : student.usuarios;
       return {
-        id: student.id,
+        id: student.estudiante_id, // Usar el ID del usuario
         registration_number: student.nro_registro,
         rut: usuario?.rut ?? 'N/A',
         name: `${usuario?.nombres ?? ''} ${usuario?.apellidos ?? ''}`.trim(),
         email: usuario?.email ?? 'N/A',
+        fecha_retiro: student.fecha_retiro,
+        es_matricula_actual: student.es_matricula_actual,
       }
     })
 

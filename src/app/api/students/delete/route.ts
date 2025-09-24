@@ -7,7 +7,8 @@ export async function POST(req: Request) {
 
   const supabase = createServiceRoleClient()
   try {
-    const { error } = await supabase.from('estudiantes_detalles').delete().eq('id', id)
+    // Eliminar todas las matrículas del estudiante
+    const { error } = await supabase.from('estudiantes_detalles').delete().eq('estudiante_id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     // Optionally, you could also delete the usuarios row or keep it.
