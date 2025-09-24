@@ -16,7 +16,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, Upload, FileSpreadsheet, Loader2, AlertTriangle, CheckCircle2, Download, FileText } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, ArrowUpDown, Trash2, Upload, FileSpreadsheet, Loader2, AlertTriangle, CheckCircle2, Download, FileText, ArrowRightLeft } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ChangeCourseDialog } from "./change-course-dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -119,6 +120,10 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     const [processedStudents, setProcessedStudents] = React.useState<number>(0);
     const [isDragOver, setIsDragOver] = React.useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    
+    // Estado para cambio de curso
+    const [changeCourseDialogOpen, setChangeCourseDialogOpen] = React.useState(false);
+    const [selectedStudentForChange, setSelectedStudentForChange] = React.useState<Student | null>(null);
 
     const [newStudent, setNewStudent] = React.useState(initialNewStudentState);
     const [editingStudentId, setEditingStudentId] = React.useState<string | null>(null);
@@ -257,6 +262,32 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
         toast({ title: 'Error', description: e.message || 'No se pudo cargar el estudiante.' })
       }
     }
+
+    const startChangeCourse = (student: Student) => {
+        // Convertir el estudiante al formato esperado por el diálogo
+        const studentForChange = {
+            id: student.id,
+            nombres: student.nombres,
+            apellidos: student.apellidos,
+            rut: student.rut,
+            nro_registro: student.registration_number,
+            curso_actual: {
+                id: '', // Se puede obtener del curso actual si es necesario
+                nombre: student.curso || 'Sin curso asignado'
+            }
+        };
+        
+        setSelectedStudentForChange(studentForChange);
+        setChangeCourseDialogOpen(true);
+    };
+
+    const handleChangeCourseSuccess = () => {
+        fetchList(); // Refrescar la lista de estudiantes
+        toast({
+            title: "Cambio Exitoso",
+            description: "El cambio de curso se realizó correctamente"
+        });
+    };
 
     const handleCreateStudent = async () => {
     if (!newStudent.nombres.trim() || !newStudent.apellidos.trim()) {
@@ -1180,6 +1211,10 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                             <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuItem onSelect={() => startEditingStudent(student.id)}>Editar</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => startChangeCourse(student)} className="text-blue-600">
+                                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                                Cambiar Curso
+                            </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => openWithdrawFor(student.id)} className="text-amber-600">Retirar</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
@@ -1229,6 +1264,10 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                       <DropdownMenuItem onSelect={() => startEditingStudent(student.id)}>Editar</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => startChangeCourse(student)} className="text-blue-600">
+                        <ArrowRightLeft className="mr-2 h-4 w-4" />
+                        Cambiar Curso
+                      </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => openWithdrawFor(student.id)} className="text-amber-600">Retirar</DropdownMenuItem>
                       <AlertDialogTrigger asChild>
                         <DropdownMenuItem className="text-red-500 hover:text-red-500 focus:text-red-500">
@@ -1286,6 +1325,14 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           </Button>
         </div>
       </div>
+
+      {/* Diálogo de Cambio de Curso */}
+      <ChangeCourseDialog
+        open={changeCourseDialogOpen}
+        onOpenChange={setChangeCourseDialogOpen}
+        student={selectedStudentForChange}
+        onSuccess={handleChangeCourseSuccess}
+      />
     </>
   );
 }

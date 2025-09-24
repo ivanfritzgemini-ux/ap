@@ -170,13 +170,13 @@ export default function AsistenciaMensualPage() {
     }
   }, [cursos])
 
-  // Cargar estudiantes cuando se selecciona un curso
+  // Cargar estudiantes cuando se selecciona un curso, mes o año
   useEffect(() => {
-    if (selectedCurso) {
+    if (selectedCurso && selectedMes && selectedAño) {
       fetchEstudiantes()
       setAsistencias({})
     }
-  }, [selectedCurso])
+  }, [selectedCurso, selectedMes, selectedAño])
 
   // Calcular días del mes cuando se selecciona mes o año
   useEffect(() => {
@@ -257,10 +257,43 @@ export default function AsistenciaMensualPage() {
       }
       
       if (result.data) {
-        setEstudiantes(result.data)
+        // Filtrar estudiantes según fecha de matrícula
+        let estudiantesFiltrados = result.data
+        
+        if (selectedMes && selectedAño) {
+          // Crear fecha límite: último día del mes seleccionado
+          const añoSeleccionado = parseInt(selectedAño)
+          const mesSeleccionado = parseInt(selectedMes)
+          const ultimoDiaDelMes = new Date(añoSeleccionado, mesSeleccionado, 0) // día 0 = último día del mes anterior
+          ultimoDiaDelMes.setHours(23, 59, 59, 999) // Hasta el final del día
+          
+          console.log('Fecha límite para filtrar estudiantes:', ultimoDiaDelMes.toISOString())
+          
+          estudiantesFiltrados = result.data.filter((estudiante: Estudiante) => {
+            if (!estudiante.enrollment_date) {
+              console.log(`⚠️ Estudiante ${estudiante.name} sin fecha de matrícula, se incluirá`)
+              return true // Incluir estudiantes sin fecha de matrícula para evitar perder datos
+            }
+            
+            const fechaMatricula = new Date(estudiante.enrollment_date)
+            const estaMatriculadoEnElPeriodo = fechaMatricula <= ultimoDiaDelMes
+            
+            if (!estaMatriculadoEnElPeriodo) {
+              console.log(`🚫 Estudiante ${estudiante.name} matriculado después del mes seleccionado (${fechaMatricula.toLocaleDateString()} > ${ultimoDiaDelMes.toLocaleDateString()})`)
+            } else {
+              console.log(`✅ Estudiante ${estudiante.name} incluido (matriculado el ${fechaMatricula.toLocaleDateString()})`)
+            }
+            
+            return estaMatriculadoEnElPeriodo
+          })
+          
+          console.log(`Filtro aplicado: ${result.data.length} estudiantes total → ${estudiantesFiltrados.length} estudiantes válidos para ${meses.find(m => m.valor.toString() === selectedMes)?.nombre} ${selectedAño}`)
+        }
+        
+        setEstudiantes(estudiantesFiltrados)
         // Inicializar asistencias vacías
         const initialAsistencias: Record<string, AsistenciaEstudiante> = {}
-        result.data.forEach((estudiante: Estudiante) => {
+        estudiantesFiltrados.forEach((estudiante: Estudiante) => {
           initialAsistencias[estudiante.id] = {
             estudianteId: estudiante.id,
             asistencias: {}
@@ -1260,7 +1293,7 @@ export default function AsistenciaMensualPage() {
           <CardHeader>
             <CardTitle>Seleccionar Mes y Curso</CardTitle>
             <CardDescription>
-              Elija el mes y curso para gestionar la asistencia.
+              Elija el mes y curso para gestionar la asistencia. Solo se mostrarán estudiantes matriculados hasta el mes seleccionado.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1314,6 +1347,17 @@ export default function AsistenciaMensualPage() {
           </CardContent>
         </Card>
 
+        {/* Información del filtro aplicado */}
+        {canShowTable && selectedMes && selectedAño && (
+          <Alert>
+            <Calendar className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Filtro activo:</strong> Se muestran solo estudiantes matriculados hasta {meses.find(m => m.valor.toString() === selectedMes)?.nombre} {selectedAño}. 
+              Los estudiantes matriculados después de esta fecha no aparecerán en el listado.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Tabla de Asistencia */}
         {canShowTable && (
           <Card>
@@ -1323,7 +1367,7 @@ export default function AsistenciaMensualPage() {
                   Asistencia - {meses.find(m => m.valor.toString() === selectedMes)?.nombre} {selectedAño}
                 </CardTitle>
                 <CardDescription>
-                  {estudiantes.length} estudiantes - {diasDelMes.filter(d => d.esHabil).length} días hábiles
+                  {estudiantes.length} estudiantes matriculados hasta {meses.find(m => m.valor.toString() === selectedMes)?.nombre} {selectedAño} - {diasDelMes.filter(d => d.esHabil).length} días hábiles
                 </CardDescription>
               </div>
               <div className="flex gap-2">
