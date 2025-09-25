@@ -20,28 +20,31 @@ export async function GET(req: Request) {
     // Build date range for the requested month in the current year
     const now = new Date()
     const year = now.getFullYear()
-    const from = new Date(Date.UTC(year, m, 1, 0, 0, 0)).toISOString()
-    const to = new Date(Date.UTC(year, m + 1, 1, 0, 0, 0)).toISOString()
+    
+    // Calcular el último día del mes correctamente
+    const lastDayOfMonth = new Date(Date.UTC(year, m + 1, 0)).getDate()
+    const from = new Date(Date.UTC(year, m, 1, 0, 0, 0)).toISOString().split('T')[0] // YYYY-MM-DD formato
+    const to = new Date(Date.UTC(year, m, lastDayOfMonth, 23, 59, 59)).toISOString().split('T')[0] // YYYY-MM-DD formato
 
-    // Count ingresos: estudiantes_detalles with fecha_matricula in range (solo matrículas activas)
+    // Count ingresos: SELECT COUNT(*) AS matriculados_marzo FROM estudiantes_detalles WHERE fecha_matricula BETWEEN '2025-03-01' AND '2025-03-31'
     const ingresosRes = await supabase
       .from('estudiantes_detalles')
       .select('id', { count: 'exact', head: false })
       .gte('fecha_matricula', from)
-      .lt('fecha_matricula', to)
-      .eq('es_matricula_actual', true)
+      .lte('fecha_matricula', to)
 
     if (ingresosRes.error) {
       return NextResponse.json({ error: ingresosRes.error.message }, { status: 500 })
     }
 
-    // Count retiros: estudiantes_detalles with fecha_retiro in range (incluye tanto retiros como cambios de curso)
+    // Count retiros: SELECT COUNT(*) AS retirados_marzo FROM estudiantes_detalles WHERE fecha_retiro BETWEEN '2025-03-01' AND '2025-03-31' AND motivo_retiro <> 'Cambio de curso'
     const retirosRes = await supabase
       .from('estudiantes_detalles')
       .select('id', { count: 'exact', head: false })
       .gte('fecha_retiro', from)
-      .lt('fecha_retiro', to)
+      .lte('fecha_retiro', to)
       .not('fecha_retiro', 'is', null)
+      .neq('motivo_retiro', 'Cambio de curso')
 
     if (retirosRes.error) {
       return NextResponse.json({ error: retirosRes.error.message }, { status: 500 })

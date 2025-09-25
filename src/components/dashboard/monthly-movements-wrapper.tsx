@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MonthlyMovementsClient } from './monthly-movements-client'
 
 const months = [
+  { key: 'ene', label: 'Enero' },
+  { key: 'feb', label: 'Febrero' },
   { key: 'mar', label: 'Marzo' },
   { key: 'abr', label: 'Abril' },
   { key: 'may', label: 'Mayo' },

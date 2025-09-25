@@ -20,35 +20,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, Briefcase, ClipboardCheck, ArrowUpRight, ArrowUp, ArrowDown, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle, School } from "lucide-react"
+import { Users, Briefcase, ClipboardCheck, ArrowUpRight, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle, School } from "lucide-react"
 import { AsistenciaPerfectaCard } from '@/components/dashboard/asistencia-perfecta-card'
 import { ResumenAsistenciaCard } from '@/components/dashboard/resumen-asistencia-card'
 import { TendenciaAsistenciaCard } from '@/components/dashboard/tendencia-asistencia-card'
 import { EstablishmentLogo } from "@/components/establishment-logo"
 import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
 import { MonthlyMovementsWrapper } from '@/components/dashboard/monthly-movements-wrapper'
+import { EnrollmentStatsCard } from '@/components/dashboard/enrollment-stats-card'
+import { AttendanceStatsCard } from '@/components/dashboard/attendance-stats-card'
+import { StudentsByCourseChart } from '@/components/dashboard/students-by-course-chart'
 import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 
 import { GenderDonut } from '@/components/dashboard/gender-donut'
 
-const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCourses, activeClasses, enrollmentData, courses }: { fullName: string; role: string, totalStudents:number, totalTeachers:number, totalCourses:number, activeClasses:number, enrollmentData:{month:string;matriculas:number}[], courses: any[] }) => (
+const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCourses, activeClasses, enrollmentData }: { fullName: string; role: string, totalStudents:number, totalTeachers:number, totalCourses:number, activeClasses:number, enrollmentData:{month:string;matriculas:number}[] }) => (
   <div className="space-y-6">
     <div>
       <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
       <p className="text-sm text-muted-foreground">{role}</p>
     </div>
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total de Estudiantes</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{totalStudents}</div>
-          <p className="text-xs text-muted-foreground">Todos los estudiantes inscritos</p>
-        </CardContent>
-      </Card>
+      <EnrollmentStatsCard />
+      <AttendanceStatsCard />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total de Profesores</CardTitle>
@@ -56,7 +51,14 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{totalTeachers}</div>
-          <p className="text-xs text-muted-foreground">Todos los profesores activos</p>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="text-xs text-muted-foreground">
+              {totalCourses > 0 ? `${(totalTeachers / totalCourses).toFixed(1)} profesores/curso` : 'Sin cursos'}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Ratio estudiante-profesor: {totalTeachers > 0 ? (totalStudents / totalTeachers).toFixed(1) : '0'}:1
+          </p>
         </CardContent>
       </Card>
       <Card>
@@ -66,27 +68,12 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{totalCourses}</div>
-          <p className="text-xs text-muted-foreground">Todos los cursos disponibles</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Tendencia Matrícula</CardTitle>
-          <GraduationCap className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {enrollmentData.reduce((sum, month) => sum + month.matriculas, 0)}
+          <div className="flex items-center gap-2 mt-1">
+            <div className="text-xs text-green-600">
+              {totalCourses > 0 ? `${Math.round(totalStudents / totalCourses)} estudiantes/curso` : 'Sin estudiantes'}
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {enrollmentData.length > 1 && enrollmentData[enrollmentData.length - 1].matriculas > enrollmentData[enrollmentData.length - 2].matriculas ? (
-              <span className="text-green-600">▲ Aumentando</span>
-            ) : enrollmentData.length > 1 && enrollmentData[enrollmentData.length - 1].matriculas < enrollmentData[enrollmentData.length - 2].matriculas ? (
-              <span className="text-red-600">▼ Disminuyendo</span>
-            ) : (
-              <span className="text-gray-500">— Estable</span>
-            )}
-          </p>
+          <p className="text-xs text-muted-foreground">Cursos con matrícula activa</p>
         </CardContent>
       </Card>
     </div>
@@ -112,20 +99,18 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-blue-500" />
-            Evolución de Matriculaciones 2024
+            <Users className="h-5 w-5 text-blue-500" />
+            Estudiantes por Curso
           </CardTitle>
           <CardDescription>
-            Nuevas matriculaciones por mes durante el año académico actual
-            {enrollmentData.length > 0 && (
-              <span className="ml-2 text-sm font-medium">
-                • Total: {enrollmentData.reduce((sum, month) => sum + month.matriculas, 0)} estudiantes
-              </span>
-            )}
+            Distribución actual de estudiantes matriculados por curso académico
+            <span className="ml-2 text-sm font-medium">
+              • Total: {totalStudents} estudiantes activos
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent className="pl-2">
-           <EnrollmentChart data={enrollmentData} />
+           <StudentsByCourseChart />
         </CardContent>
       </Card>
       <Card>
@@ -139,53 +124,7 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
       </Card>
     </div>
     
-     <div className="grid gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-1">
-            <CardHeader>
-                <CardTitle>Estudiantes por Curso</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Curso</TableHead>
-                            <TableHead className="text-right">N° de Estudiantes</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Array.isArray(courses) && courses.length > 0 ? (
-                        courses.map((c: any) => (
-                          <TableRow key={c.id}>
-                            <TableCell>{c.nombre_curso}</TableCell>
-                            <TableCell className="text-right flex items-center justify-end gap-2">
-                              <span>{c.alumnos}</span>
-                              {c.delta > 0 ? (
-                                <span className="inline-flex items-center text-green-600 text-sm">
-                                  <ArrowUp className="h-4 w-4 animate-pulse" />
-                                  <span className="ml-1">+{c.delta}</span>
-                                  {c.percent !== null ? <span className="ml-2 text-xs text-green-700">({c.percent}%)</span> : null}
-                                </span>
-                              ) : c.delta < 0 ? (
-                                <span className="inline-flex items-center text-red-600 text-sm">
-                                  <ArrowDown className="h-4 w-4 animate-pulse" />
-                                  <span className="ml-1">-{Math.abs(c.delta)}</span>
-                                  {c.percent !== null ? <span className="ml-2 text-xs text-red-700">({Math.abs(c.percent)}%)</span> : null}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center text-muted-foreground text-sm">—</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={2} className="text-sm text-muted-foreground">No hay cursos registrados.</TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+     <div className="grid gap-6 lg:grid-cols-2">
         <AsistenciaPerfectaCard />
      </div>
      
@@ -402,8 +341,6 @@ export default async function DashboardPage() {
     let totalCourses = 0
     let activeClasses = 0
   let enrollmentData: { month: string; matriculas: number }[] = []
-    let normalizedCourses: any[] = []
-
     try {
       // count students (estudiantes_detalles with active enrollment)
       const studentsRes = await supabase
@@ -412,66 +349,9 @@ export default async function DashboardPage() {
         .eq('es_matricula_actual', true)
       totalStudents = (studentsRes.count ?? 0) as number
 
-      // courses
-      const coursesRes = await supabase.from('cursos').select('*')
-      const coursesData = coursesRes.data
-      const coursesErr = coursesRes.error
-      totalCourses = Array.isArray(coursesData) ? coursesData.length : 0
-
-      // Build students-per-course counts: fetch estudiantes_detalles for active students
-        try {
-        // Fetch relevant fields to compute current active students per course
-        const { data: studentRows } = await supabase.from('estudiantes_detalles').select('curso_id,fecha_matricula,fecha_retiro,es_matricula_actual')
-        const countsMap: Record<string, number> = {}
-        const prevCountsMap: Record<string, number> = {}
-
-        // previous month end date
-        const now = new Date()
-        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-        const prevMonthEnd = new Date(prev.getFullYear(), prev.getMonth() + 1, 0)
-
-        if (Array.isArray(studentRows)) {
-          for (const r of studentRows as any[]) {
-            const key = String(r.curso_id)
-
-            // current active students: es_matricula_actual = true
-            if (r.es_matricula_actual === true) {
-              countsMap[key] = (countsMap[key] || 0) + 1
-            }
-
-            // compute if student was active at end of previous month
-            const fm = r.fecha_matricula ? new Date(r.fecha_matricula) : null
-            const fr = r.fecha_retiro ? new Date(r.fecha_retiro) : null
-            if (fm && fm <= prevMonthEnd && (!fr || fr > prevMonthEnd)) {
-              prevCountsMap[key] = (prevCountsMap[key] || 0) + 1
-            }
-          }
-        }
-
-        // Normalize courses array for rendering and include previous month counts
-        const coursesList = Array.isArray(coursesData) ? coursesData as any[] : []
-        normalizedCourses = coursesList.map((c: any) => {
-          const id = c.id
-          const nivel = c.nivel ?? ''
-          const letra = c.letra ?? ''
-          const nombre_curso = [nivel, letra].filter(Boolean).join(' ').trim() || c.nombre || String(id)
-          const alumnos = countsMap[String(id)] ?? 0
-          const prevAlumnos = prevCountsMap[String(id)] ?? 0
-          const delta = alumnos - prevAlumnos
-          const percent = prevAlumnos > 0 ? Number(((delta / prevAlumnos) * 100).toFixed(1)) : null
-          return {
-            id,
-            nombre_curso,
-            alumnos,
-            prevAlumnos,
-            delta,
-            percent,
-            _raw: c,
-          }
-        })
-      } catch (e) {
-        normalizedCourses = Array.isArray(coursesData) ? (coursesData as any[]).map((c: any) => ({ id: c.id, nombre_curso: `${c.nivel ?? ''} ${c.letra ?? ''}`.trim(), alumnos: 0, _raw: c })) : []
-      }
+      // courses - simplified query just for counting
+      const coursesRes = await supabase.from('cursos').select('id', { count: 'exact', head: false })
+      totalCourses = coursesRes.count ?? 0
 
       // enrollment rows for monthly aggregation
   const enrollRes = await supabase.from('estudiantes_detalles').select('fecha_matricula').eq('es_matricula_actual', true)
@@ -542,7 +422,7 @@ export default async function DashboardPage() {
   // Decide which dashboard to render using the normalized role key.
   switch (normalizedRole) {
     case "administrator":
-  DashboardComponent = () => <AdminDashboard fullName={fullName} role={userRole} totalStudents={totalStudents} totalTeachers={totalTeachers} totalCourses={totalCourses} activeClasses={activeClasses} enrollmentData={enrollmentData} courses={normalizedCourses} />;
+  DashboardComponent = () => <AdminDashboard fullName={fullName} role={userRole} totalStudents={totalStudents} totalTeachers={totalTeachers} totalCourses={totalCourses} activeClasses={activeClasses} enrollmentData={enrollmentData} />;
       break;
     case "teacher":
       DashboardComponent = () => <TeacherDashboard fullName={fullName} role={userRole} />;

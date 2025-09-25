@@ -40,7 +40,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { Student } from "@/lib/types";
+// import type { Student } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -55,6 +55,34 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { parseISO, format as formatDateFn } from 'date-fns'
 import { formatRut } from "@/lib/utils"
+
+// Tipo local compatible con change-course-dialog
+interface Student {
+  id: string;
+  registration_number: string;
+  rut: string;
+  nombres: string;
+  apellidos: string;
+  curso: string;
+  sexo: string;
+  email: string;
+  enrollment_date: string;
+  fecha_retiro?: string;
+  motivo_retiro?: string;
+}
+
+// Tipo para el diálogo de cambio de curso
+interface StudentForChange {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  rut: string;
+  nro_registro: string;
+  curso_actual: {
+    id: string;
+    nombre: string;
+  } | null;
+}
 
 type SortKey = keyof Student;
 
@@ -123,7 +151,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
     
     // Estado para cambio de curso
     const [changeCourseDialogOpen, setChangeCourseDialogOpen] = React.useState(false);
-    const [selectedStudentForChange, setSelectedStudentForChange] = React.useState<Student | null>(null);
+    const [selectedStudentForChange, setSelectedStudentForChange] = React.useState<StudentForChange | null>(null);
 
     const [newStudent, setNewStudent] = React.useState(initialNewStudentState);
     const [editingStudentId, setEditingStudentId] = React.useState<string | null>(null);
@@ -726,9 +754,9 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>Importar Estudiantes desde CSV</DialogTitle>
-                <DialogDescription>
+                <div className="text-sm text-muted-foreground">
                   Sube un archivo CSV con los datos de estudiantes para importar en masa.
-                </DialogDescription>
+                </div>
               </DialogHeader>
               
               {!importResults ? (
@@ -954,9 +982,9 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>{editingStudentId ? 'Editar Estudiante' : 'Matricular Estudiante'}</DialogTitle>
-              <DialogDescription>
+              <div className="text-sm text-muted-foreground">
                 {editingStudentId ? 'Modifique los detalles del estudiante.' : 'Rellene los detalles para matricular un nuevo estudiante.'}
-              </DialogDescription>
+              </div>
             </DialogHeader>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
                 <div className="space-y-4">
@@ -1112,7 +1140,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Retirar Estudiante</DialogTitle>
-              <DialogDescription>Registre la fecha de retiro y el motivo. Esto marcará al estudiante como retirado.</DialogDescription>
+              <div className="text-sm text-muted-foreground">Registre la fecha de retiro y el motivo. Esto marcará al estudiante como retirado.</div>
             </DialogHeader>
             <div className="grid gap-4 py-2">
               <div className="grid gap-2">

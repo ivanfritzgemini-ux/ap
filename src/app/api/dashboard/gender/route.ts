@@ -5,29 +5,43 @@ export async function GET() {
   try {
     const supabase = await createServerClient()
 
-    // Find student role if available
-    const rolesRes = (await supabase.from('roles').select('id,nombre_rol')).data as any[]
-    const studentRole = (rolesRes || []).find((r: any) => /estud|student|alumn/i.test(String(r.nombre_rol).toLowerCase()))
+    // Obtener todos los estudiantes con matrícula actual y su información de sexo
+    const { data: estudiantesData, error: estudiantesError } = await supabase
+      .from('estudiantes_detalles')
+      .select(`
+        estudiante_id,
+        usuarios!inner(
+          id,
+          sexo_id
+        )
+      `)
+      .eq('es_matricula_actual', true)
 
-    let usersQuery = supabase.from('usuarios').select('id,sexo:sexo_id(nombre)')
-    if (studentRole && studentRole.id) {
-      usersQuery = usersQuery.eq('rol_id', studentRole.id)
+    if (estudiantesError) {
+      console.error('Error en consulta de estudiantes:', estudiantesError)
+      return NextResponse.json({ error: 'Error al obtener datos de estudiantes' }, { status: 500 })
     }
 
-    const { data: usersRows } = await usersQuery
-
+    // Contar por género usando los IDs específicos
     let women = 0
     let men = 0
-    if (Array.isArray(usersRows)) {
-      for (const u of usersRows as any[]) {
-        const genderName = (u.sexo?.nombre || '').toString().toLowerCase()
-        if (/muj|fem|female|woman/i.test(genderName)) women++
-        else if (/hom|masc|male|man/i.test(genderName)) men++
+
+    if (estudiantesData) {
+      for (const estudiante of estudiantesData) {
+        // usuarios es un array, tomar el primer elemento
+        const usuario = Array.isArray(estudiante.usuarios) ? estudiante.usuarios[0] : estudiante.usuarios
+        const sexoId = usuario?.sexo_id
+        if (sexoId === 'a96401ae-e227-4a1d-9978-d87faa1bb2c2') {
+          women++
+        } else if (sexoId === 'c871e0f9-ec4e-4039-9287-027340665d1c') {
+          men++
+        }
       }
     }
 
     return NextResponse.json({ women, men })
   } catch (err: any) {
+    console.error('Error general:', err)
     return NextResponse.json({ error: err.message || 'Unknown error' }, { status: 500 })
   }
 }
