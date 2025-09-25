@@ -34,22 +34,7 @@ export function ResumenAsistenciaCard() {
   const cargarResumenAsistencia = async () => {
     setLoading(true);
     try {
-      // Obtener el mes actual o el mes escolar más reciente
-      const fechaActual = new Date();
-      let mesActual = fechaActual.getMonth() + 1; // 1-12
-      let añoActual = fechaActual.getFullYear();
-
-      // Ajustar para año escolar (si estamos en enero o febrero, mostrar diciembre del año anterior)
-      if (mesActual < 3) {
-        mesActual = 12;
-        añoActual = añoActual - 1;
-      }
-
-      // Convertir a string con formato
-      const mesStr = mesActual.toString().padStart(2, '0');
-      const añoStr = añoActual.toString();
-
-      // Realizar la consulta a la API
+      // Realizar la consulta a la API actualizada
       const response = await fetch('/api/asistencia/resumen');
       
       if (!response.ok) {
@@ -58,38 +43,38 @@ export function ResumenAsistenciaCard() {
       
       const result = await response.json();
       
-      // Datos más realistas para el resumen de asistencia
-      const cursosReales = [
-        { id: '1', nombre: '1° Básico A', asistenciaPromedio: 94 },
-        { id: '2', nombre: '1° Básico B', asistenciaPromedio: 91 },
-        { id: '3', nombre: '2° Básico A', asistenciaPromedio: 89 },
-        { id: '4', nombre: '2° Básico B', asistenciaPromedio: 87 },
-        { id: '5', nombre: '3° Básico A', asistenciaPromedio: 92 },
-        { id: '6', nombre: '3° Básico B', asistenciaPromedio: 88 },
-        { id: '7', nombre: '4° Básico A', asistenciaPromedio: 85 },
-        { id: '8', nombre: '4° Básico B', asistenciaPromedio: 83 },
-        { id: '9', nombre: '5° Básico A', asistenciaPromedio: 90 },
-        { id: '10', nombre: '5° Básico B', asistenciaPromedio: 86 },
-        { id: '11', nombre: '6° Básico A', asistenciaPromedio: 84 },
-        { id: '12', nombre: '6° Básico B', asistenciaPromedio: 78 }
-      ];
-
-      const promedioGeneral = Math.round(
-        cursosReales.reduce((sum, curso) => sum + curso.asistenciaPromedio, 0) / cursosReales.length
-      );
-
-      const cursosConProblemas = cursosReales.filter(c => c.asistenciaPromedio < 80).length;
+      if (!result.success) {
+        throw new Error(result.error || 'Error desconocido');
+      }
+      
+      // Obtener el año escolar actual
+      const fechaActual = new Date();
+      let añoEscolar = fechaActual.getFullYear();
+      
+      if (fechaActual.getMonth() < 2) { // Enero o Febrero
+        añoEscolar = añoEscolar - 1;
+      }
 
       setData({
-        mes: obtenerNombreMes(mesActual),
-        año: añoStr,
-        asistenciaPromedio: promedioGeneral,
-        diasHabiles: 22, // Días hábiles más realistas para un mes escolar
-        cursos: cursosReales,
-        cursosConProblemas: cursosConProblemas
+        mes: 'Año Escolar', // Cambiamos a mostrar año completo en lugar de mes
+        año: añoEscolar.toString(),
+        asistenciaPromedio: result.asistenciaPromedio || 0,
+        diasHabiles: result.diasHabiles || 0,
+        cursos: result.cursos || [],
+        cursosConProblemas: result.cursosConProblemas || 0
       });
     } catch (error) {
       console.error('Error al cargar resumen de asistencia:', error);
+      
+      // En caso de error, mostrar mensaje informativo
+      setData({
+        mes: 'Sin datos',
+        año: new Date().getFullYear().toString(),
+        asistenciaPromedio: 0,
+        diasHabiles: 0,
+        cursos: [],
+        cursosConProblemas: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -199,8 +184,11 @@ export function ResumenAsistenciaCard() {
             </div>
           </div>
         ) : (
-          <div className="h-[200px] flex items-center justify-center">
-            <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+          <div className="h-[200px] flex flex-col items-center justify-center space-y-2">
+            <p className="text-sm text-muted-foreground">No hay datos de asistencia disponibles</p>
+            <p className="text-xs text-muted-foreground text-center">
+              Los datos se mostrarán cuando haya registros de asistencia en el sistema
+            </p>
           </div>
         )}
       </CardContent>
