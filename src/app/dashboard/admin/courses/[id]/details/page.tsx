@@ -19,21 +19,6 @@ const formatDate = (dateString: string | null | undefined) => {
   }
 };
 
-const formatCourseName = (course: any) => {
-  if (!course.nivel || !course.letra) return course.nombre_curso;
-  
-  // Verificar si es Educación Media
-  const tipoEducacion = course.tipo_educacion || '';
-  const isEducacionMedia = tipoEducacion.toLowerCase().includes('educación media') || 
-                          tipoEducacion.toLowerCase().includes('educacion media');
-  
-  if (isEducacionMedia) {
-    return `${course.nivel}º Medio ${course.letra}`;
-  } else {
-    return `${course.nivel} ${course.letra}`;
-  }
-};
-
 export default async function CourseDetailsPage({ params }: { params: { id: string } }) {
   const { id } = await params;
 
@@ -65,7 +50,7 @@ export default async function CourseDetailsPage({ params }: { params: { id: stri
         <CardContent className="space-y-2 text-sm md:text-base">
           <div className="flex justify-between">
             <span className="font-semibold">Nombre del Curso:</span>
-            <span>{formatCourseName(course)}</span>
+            <span>{course.nombre_curso}</span>
           </div>
           <div className="flex justify-between">
             <span className="font-semibold">Profesor Jefe:</span>
