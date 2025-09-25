@@ -19,6 +19,25 @@ const formatDate = (dateString: string | null | undefined) => {
   }
 };
 
+const formatEnrollmentDate = (dateString: string | null | undefined) => {
+  if (!dateString) return '-';
+  try {
+    const date = new Date(dateString);
+    const cutoffDate = new Date('2025-03-05');
+    
+    // Ocultar fechas anteriores al 05-03-2025
+    if (date < cutoffDate) {
+      return '-';
+    }
+    
+    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+    const correctedDate = new Date(date.getTime() + userTimezoneOffset);
+    return correctedDate.toLocaleDateString('es-CL');
+  } catch (error) {
+    return 'Fecha inválida';
+  }
+};
+
 export default async function CourseDetailsPage({ params }: { params: { id: string } }) {
   const { id } = await params;
 
@@ -106,7 +125,7 @@ export default async function CourseDetailsPage({ params }: { params: { id: stri
                     })}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>{student.registration_number}</TableCell>
-                      <TableCell>{formatDate(student.enrollment_date)}</TableCell>
+                      <TableCell>{formatEnrollmentDate(student.enrollment_date)}</TableCell>
                       <TableCell>{formatDate(student.withdrawal_date)}</TableCell>
                       <TableCell>{student.name}</TableCell>
                     </TableRow>
