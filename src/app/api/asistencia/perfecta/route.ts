@@ -33,96 +33,148 @@ export async function GET(request: Request) {
       }
     }
 
-    // 2. Obtener todos los estudiantes activos y sus cursos
-    const { data: estudiantes, error: errorEstudiantes } = await supabase
-      .from('estudiantes_detalles')
-      .select(`
-        id,
-        curso_id,
-        fecha_matricula,
-        fecha_retiro,
-        usuarios (
-          nombres,
-          apellidos
-        ),
-        cursos (
-          id,
-          nivel,
-          letra
-        )
-      `)
-    
-    if (errorEstudiantes) {
-      console.error('Error al obtener estudiantes:', errorEstudiantes)
-      return NextResponse.json({ error: errorEstudiantes.message }, { status: 500 })
-    }
-
-    // 3. Obtener todos los registros de asistencia para el mes seleccionado
-    const { data: registrosAsistencia, error: errorAsistencia } = await supabase
+    // 2. Obtener todos los registros de asistencia para el mes seleccionado
+    const { data: asistenciaMes, error: asistenciaError } = await supabase
       .from('asistencia')
-      .select('fecha, estudiante_id, presente')
+      .select(`
+        estudiante_id,
+        fecha,
+        presente,
+        justificado
+      `)
       .gte('fecha', primerDia)
       .lte('fecha', ultimoDia)
-      .eq('presente', true)
-    
-    if (errorAsistencia) {
-      console.error('Error al obtener asistencia:', errorAsistencia)
-      return NextResponse.json({ error: errorAsistencia.message }, { status: 500 })
+      .order('estudiante_id')
+      .order('fecha')
+
+    if (asistenciaError) {
+      console.error('Error al obtener asistencia:', asistenciaError)
+      return NextResponse.json({ error: asistenciaError.message }, { status: 500 })
     }
 
-    // 4. Agrupar registros de asistencia por estudiante
-    const asistenciaPorEstudiante: Record<string, Set<string>> = {}
-    
-    registrosAsistencia?.forEach(registro => {
-      if (!asistenciaPorEstudiante[registro.estudiante_id]) {
-        asistenciaPorEstudiante[registro.estudiante_id] = new Set()
+    if (!asistenciaMes || asistenciaMes.length === 0) {
+      return NextResponse.json({
+        mes: parseInt(mes),
+        año: parseInt(año),
+        total_dias_habiles: diasHabiles.length,
+        estudiantes_perfectos: [],
+        total: 0,
+        message: 'No hay registros de asistencia para este mes'
+      })
+    }
+
+    // 3. Agrupar por estudiante y calcular estadísticas
+    const estadisticasPorEstudiante: Record<string, any> = {}
+
+    asistenciaMes.forEach(registro => {
+      const { estudiante_id, fecha, presente, justificado } = registro
+      
+      if (!estadisticasPorEstudiante[estudiante_id]) {
+        estadisticasPorEstudiante[estudiante_id] = {
+          fechas_registradas: new Set(),
+          dias_presente: 0,
+          dias_ausente: 0,
+          ausentes_justificadas: 0,
+          ausentes_injustificadas: 0
+        }
       }
-      asistenciaPorEstudiante[registro.estudiante_id].add(registro.fecha)
+      
+      const stats = estadisticasPorEstudiante[estudiante_id]
+      stats.fechas_registradas.add(fecha)
+      
+      if (presente) {
+        stats.dias_presente++
+      } else {
+        stats.dias_ausente++
+        if (justificado) {
+          stats.ausentes_justificadas++
+        } else {
+          stats.ausentes_injustificadas++
+        }
+      }
     })
 
-    // 5. Encontrar estudiantes con 100% de asistencia
-    const estudiantesPerfectos = []
+    // Convertir Set a array y calcular totales
+    Object.keys(estadisticasPorEstudiante).forEach(estudianteId => {
+      const stats = estadisticasPorEstudiante[estudianteId]
+      stats.fechas_registradas = Array.from(stats.fechas_registradas)
+      stats.total_dias_registrados = stats.fechas_registradas.length
+    })
+
+    // 4. Identificar estudiantes con 100% de asistencia
+    const estudiantesConPerfectaAsistencia = []
     
-    for (const estudiante of estudiantes || []) {
-      // Calcular los días en que el estudiante debería haber asistido
-      const diasObligatorios = diasHabiles.filter(fecha => {
-        const fechaDia = new Date(fecha)
-        const fechaMatricula = estudiante.fecha_matricula ? new Date(estudiante.fecha_matricula) : null
-        const fechaRetiro = estudiante.fecha_retiro ? new Date(estudiante.fecha_retiro) : null
-        
-        // Verificar que el estudiante estaba matriculado en esta fecha
-        if (fechaMatricula && fechaDia < fechaMatricula) return false
-        if (fechaRetiro && fechaDia > fechaRetiro) return false
-        
-        return true
-      })
+    for (const [estudianteId, stats] of Object.entries(estadisticasPorEstudiante)) {
+      const porcentajeAsistencia = stats.total_dias_registrados > 0 
+        ? (stats.dias_presente / stats.total_dias_registrados) * 100 
+        : 0
       
-      // Si no hay días obligatorios para este estudiante, continuar con el siguiente
-      if (diasObligatorios.length === 0) continue
-      
-      // Verificar asistencia del estudiante para los días obligatorios
-      const diasPresente = asistenciaPorEstudiante[estudiante.id] || new Set()
-      const asistenciaPerfecta = diasObligatorios.every(fecha => diasPresente.has(fecha))
-      
-      // Solo incluir estudiantes con asistencia perfecta y al menos 1 día obligatorio
-      if (asistenciaPerfecta && diasObligatorios.length > 0) {
-        // Obtener el nombre completo del estudiante
-        const usuario = Array.isArray(estudiante.usuarios) ? estudiante.usuarios[0] : estudiante.usuarios;
-        const nombreCompleto = `${usuario?.apellidos || ''} ${usuario?.nombres || ''}`.trim();
-        
-        // Obtener el nombre del curso
-        const curso = Array.isArray(estudiante.cursos) ? estudiante.cursos[0] : estudiante.cursos;
-        const nombreCurso = curso ? `${curso.nivel}° ${curso.letra}` : 'Sin curso';
-        
-        estudiantesPerfectos.push({
-          id: estudiante.id,
-          nombre: nombreCompleto,
-          curso_id: estudiante.curso_id,
-          nombre_curso: nombreCurso,
-          dias_asistidos: diasPresente.size,
-          total_dias_obligatorios: diasObligatorios.length
+      if (porcentajeAsistencia === 100) {
+        estudiantesConPerfectaAsistencia.push({
+          estudiante_id: estudianteId,
+          ...stats,
+          porcentaje_asistencia: 100
         })
       }
+    }
+
+    // 5. Si hay estudiantes con 100%, obtener sus datos personales
+    const estudiantesPerfectos: any[] = []
+    
+    if (estudiantesConPerfectaAsistencia.length > 0) {
+      const estudianteIds = estudiantesConPerfectaAsistencia.map(e => e.estudiante_id)
+      
+      // Buscar por estudiante_id
+      const { data: estudiantesDetalles, error: estudiantesError } = await supabase
+        .from('estudiantes_detalles')
+        .select('id, estudiante_id, nro_registro, curso_id')
+        .in('estudiante_id', estudianteIds)
+
+      if (estudiantesError) {
+        console.error('Error al obtener estudiantes detalles:', estudiantesError)
+        return NextResponse.json({ error: estudiantesError.message }, { status: 500 })
+      }
+
+      // Obtener información de usuarios
+      const usuarioIds = estudiantesDetalles?.map(ed => ed.estudiante_id) || []
+      const { data: usuariosData, error: usuariosError } = await supabase
+        .from('usuarios')
+        .select('id, rut, nombres, apellidos')
+        .in('id', usuarioIds)
+
+      // Obtener información de cursos
+      const cursoIds = estudiantesDetalles?.map(ed => ed.curso_id) || []
+      const { data: cursosData, error: cursosError } = await supabase
+        .from('cursos')
+        .select('id, nombre_curso, nivel, letra')
+        .in('id', cursoIds)
+
+      // Combinar los datos
+      estudiantesDetalles?.forEach(detalle => {
+        const usuario = usuariosData?.find(u => u.id === detalle.estudiante_id)
+        const curso = cursosData?.find(c => c.id === detalle.curso_id)
+        const stats = estudiantesConPerfectaAsistencia.find(e => e.estudiante_id === detalle.estudiante_id)
+        
+        if (stats) {
+          // Formatear nombre con apellidos primero
+          const nombres = usuario?.nombres || ''
+          const apellidos = usuario?.apellidos || ''
+          const nombreCompleto = apellidos && nombres 
+            ? `${apellidos}, ${nombres}` 
+            : `${apellidos}${nombres}`.trim()
+          
+          const nombreCurso = curso?.nombre_curso || `${curso?.nivel}${curso?.letra}` || 'Sin curso'
+          
+          estudiantesPerfectos.push({
+            id: detalle.id,
+            nombre: nombreCompleto,
+            curso_id: detalle.curso_id,
+            nombre_curso: nombreCurso,
+            dias_asistidos: stats.dias_presente,
+            total_dias_obligatorios: stats.total_dias_registrados
+          })
+        }
+      })
     }
 
     return NextResponse.json({

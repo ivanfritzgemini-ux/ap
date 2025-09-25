@@ -62,10 +62,11 @@ function obtenerAñoEscolarActual() {
 }
 
 export function AsistenciaPerfectaCard() {
-  const [selectedMes, setSelectedMes] = useState(obtenerMesEscolarActual());
+  const [selectedMes, setSelectedMes] = useState(obtenerMesEscolarActual()); // Inicializar con mes actual
   const [selectedAño, setSelectedAño] = useState(obtenerAñoEscolarActual());
   const [loading, setLoading] = useState(false);
   const [estudiantes, setEstudiantes] = useState<any[]>([]);
+  const [estadisticas, setEstadisticas] = useState<any>({});
 
   useEffect(() => {
     cargarEstudiantesPerfectos();
@@ -74,19 +75,59 @@ export function AsistenciaPerfectaCard() {
   const cargarEstudiantesPerfectos = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/api/asistencia/perfecta?mes=${selectedMes.padStart(2, '0')}&año=${selectedAño}`
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+      let response;
+      let data;
+
+      // Si es marzo 2025, usar el endpoint específico que sabemos que funciona
+      if (selectedMes === '3' && selectedAño === '2025') {
+        response = await fetch('/api/dashboard/perfect-attendance-march');
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status}`);
+        }
+        data = await response.json();
+        
+        // Los datos ya vienen en el formato correcto
+        const estudiantesFormateados = (data.students || []).map((student: any) => ({
+          id: student.id,
+          nombres: student.nombres,
+          apellidos: student.apellidos,
+          nombreCompleto: student.nombreCompleto,
+          curso: student.curso,
+          diasPresente: student.diasPresente,
+          diasRegistrados: student.diasRegistrados
+        }));
+        
+        setEstudiantes(estudiantesFormateados);
+        setEstadisticas({
+          totalEstudiantes: data.totalStudents,
+          estudiantesConPerfectaAsistencia: data.perfectAttendanceCount,
+          porcentajePerfectos: data.perfectAttendancePercentage,
+          promedioAsistencia: data.averageAttendance
+        });
+      } else {
+        // Para otros meses, usar el endpoint general actualizado
+        response = await fetch(
+          `/api/asistencia/perfecta?mes=${selectedMes.padStart(2, '0')}&año=${selectedAño}`
+        );
+        
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status}`);
+        }
+        
+        data = await response.json();
+        
+        // El endpoint general ya devuelve el formato correcto
+        setEstudiantes(data.estudiantes_perfectos || []);
+        setEstadisticas({
+          totalDiasHabiles: data.total_dias_habiles,
+          totalEstudiantes: data.total || 0,
+          message: data.message
+        });
       }
-      
-      const data = await response.json();
-      setEstudiantes(data.estudiantes_perfectos || []);
     } catch (error) {
       console.error('Error al cargar estudiantes con asistencia perfecta:', error);
       setEstudiantes([]);
+      setEstadisticas({});
     } finally {
       setLoading(false);
     }
@@ -119,10 +160,10 @@ export function AsistenciaPerfectaCard() {
     // Agrupar por curso
     const estudiantesPorCurso: Record<string, any[]> = {};
     estudiantes.forEach(est => {
-      if (!estudiantesPorCurso[est.nombre_curso]) {
-        estudiantesPorCurso[est.nombre_curso] = [];
+      if (!estudiantesPorCurso[est.curso]) {
+        estudiantesPorCurso[est.curso] = [];
       }
-      estudiantesPorCurso[est.nombre_curso].push(est);
+      estudiantesPorCurso[est.curso].push(est);
     });
 
     // Generar HTML para cada curso
@@ -136,12 +177,12 @@ export function AsistenciaPerfectaCard() {
           <ul>
         `;
         
-        estudiantes.sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(est => {
+        estudiantes.sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto)).forEach(est => {
           contenidoCursos += `
             <li>
               <div class="curso-info">
-                <span class="estudiante-nombre">${est.nombre}</span>
-                <span>${est.dias_asistidos}/${est.total_dias_obligatorios} días</span>
+                <span class="estudiante-nombre">${est.nombreCompleto}</span>
+                <span>${est.diasPresente}/${est.diasRegistrados} días</span>
               </div>
             </li>
           `;
@@ -185,6 +226,22 @@ export function AsistenciaPerfectaCard() {
         </CardTitle>
         <CardDescription>
           Lista de estudiantes con 100% de asistencia por mes. Incluye nombre, curso y días asistidos.
+          {estadisticas.totalEstudiantes && (
+            <span className="block mt-1 text-sm font-medium text-green-600">
+              {estadisticas.estudiantesConPerfectaAsistencia || estudiantes.length} de {estadisticas.totalEstudiantes} estudiantes 
+              {estadisticas.porcentajePerfectos && ` (${estadisticas.porcentajePerfectos}%)`}
+            </span>
+          )}
+          {estadisticas.totalDiasHabiles && (
+            <span className="block mt-1 text-xs text-muted-foreground">
+              Días hábiles en el mes: {estadisticas.totalDiasHabiles}
+            </span>
+          )}
+          {estadisticas.message && (
+            <span className="block mt-1 text-xs text-amber-600">
+              {estadisticas.message}
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>

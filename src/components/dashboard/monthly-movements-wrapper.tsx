@@ -5,8 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MonthlyMovementsClient } from './monthly-movements-client'
 
 const months = [
-  { key: 'ene', label: 'Enero' },
-  { key: 'feb', label: 'Febrero' },
   { key: 'mar', label: 'Marzo' },
   { key: 'abr', label: 'Abril' },
   { key: 'may', label: 'Mayo' },
@@ -22,7 +20,9 @@ const months = [
 function currentMonthKey() {
   const m = new Date().getMonth() // 0-11
   const map: Record<number, string> = {
-    0: 'ene', 1: 'feb', 2: 'mar', 3: 'abr', 4: 'may', 5: 'jun', 6: 'jul', 7: 'ago', 8: 'sep', 9: 'oct', 10: 'nov', 11: 'dic'
+    0: 'mar', // Si es enero, mostrar marzo por defecto
+    1: 'mar', // Si es febrero, mostrar marzo por defecto
+    2: 'mar', 3: 'abr', 4: 'may', 5: 'jun', 6: 'jul', 7: 'ago', 8: 'sep', 9: 'oct', 10: 'nov', 11: 'dic'
   }
   return map[m]
 }

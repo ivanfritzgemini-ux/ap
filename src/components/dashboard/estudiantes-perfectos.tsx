@@ -1,6 +1,14 @@
 import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Nombre de los meses en español
 const nombreMeses = [
@@ -10,11 +18,12 @@ const nombreMeses = [
 
 interface EstudiantePerfecto {
   id: string;
-  nombre: string;
-  curso_id: string;
-  nombre_curso: string;
-  dias_asistidos: number;
-  total_dias_obligatorios: number;
+  nombres?: string;
+  apellidos?: string;
+  nombreCompleto: string;
+  curso: string;
+  diasPresente: number;
+  diasRegistrados: number;
 }
 
 interface EstudiantesPerfectosProps {
@@ -25,23 +34,14 @@ interface EstudiantesPerfectosProps {
 }
 
 export function EstudiantesPerfectos({ mes, año, estudiantes, isLoading = false }: EstudiantesPerfectosProps) {
-  // Agrupar estudiantes por curso para mejor visualización
-  const estudiantesPorCurso: Record<string, EstudiantePerfecto[]> = {};
-  
-  estudiantes.forEach(estudiante => {
-    const cursoId = estudiante.curso_id;
-    if (!estudiantesPorCurso[cursoId]) {
-      estudiantesPorCurso[cursoId] = [];
-    }
-    estudiantesPorCurso[cursoId].push(estudiante);
-  });
-
-  // Ordenar cursos alfabéticamente
-  const cursos = Object.keys(estudiantesPorCurso).sort((a, b) => {
-    const nombreA = estudiantesPorCurso[a][0].nombre_curso;
-    const nombreB = estudiantesPorCurso[b][0].nombre_curso;
-    return nombreA.localeCompare(nombreB);
-  });
+  // Ordenar estudiantes alfabéticamente por apellidos
+  const estudiantesOrdenados = [...estudiantes]
+    .sort((a, b) => {
+      // Si tenemos apellidos separados, usar esos; si no, usar la primera parte del nombreCompleto
+      const apellidosA = a.apellidos || a.nombreCompleto.split(',')[0];
+      const apellidosB = b.apellidos || b.nombreCompleto.split(',')[0];
+      return apellidosA.localeCompare(apellidosB, 'es', { sensitivity: 'base' });
+    });
 
   if (isLoading) {
     return (
@@ -53,48 +53,89 @@ export function EstudiantesPerfectos({ mes, año, estudiantes, isLoading = false
 
   if (estudiantes.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48">
-        <p className="text-muted-foreground">No hay alumnos con 100% de asistencia para {nombreMeses[mes - 1]} {año}.</p>
+      <div className="space-y-4">
+        {/* Resumen cuando no hay datos */}
+        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+          <div className="flex items-center gap-4">
+            <div className="text-sm">
+              <span className="font-semibold text-amber-600">0</span>
+              <span className="text-muted-foreground ml-1">estudiantes con 100% de asistencia</span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {nombreMeses[mes - 1]} {año}
+            </div>
+          </div>
+        </div>
+        
+        {/* Mensaje informativo */}
+        <div className="flex flex-col items-center justify-center h-32 space-y-2 border-2 border-dashed border-muted rounded-lg">
+          <p className="text-muted-foreground font-medium">No hay alumnos con 100% de asistencia</p>
+          <p className="text-xs text-muted-foreground text-center max-w-md">
+            Esto puede deberse a que no hay registros de asistencia para este mes o ningún estudiante alcanzó el 100%.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <ScrollArea className="h-72">
-      <div className="space-y-4">
-        {cursos.map((cursoId) => (
-          <div key={cursoId} className="space-y-2">
-            <div className="sticky top-0 bg-background py-1 z-10">
-              <Badge variant="outline" className="font-medium">
-                {estudiantesPorCurso[cursoId][0].nombre_curso}
-              </Badge>
-              <span className="text-xs text-muted-foreground ml-2">
-                {estudiantesPorCurso[cursoId].length} alumno{estudiantesPorCurso[cursoId].length !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <ul className="space-y-1">
-              {estudiantesPorCurso[cursoId]
-                .sort((a, b) => a.nombre.localeCompare(b.nombre)) // Ordenar alfabéticamente
-                .map((estudiante) => (
-                <li key={estudiante.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{estudiante.nombre}</span>
-                    <span className="text-xs text-muted-foreground">{estudiante.nombre_curso}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-green-600 bg-green-100 dark:bg-green-900/20 px-2 py-1 rounded-full">
-                      100%
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {estudiante.dias_asistidos}/{estudiante.total_dias_obligatorios}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+    <div className="space-y-4">
+      {/* Resumen estadístico */}
+      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+        <div className="flex items-center gap-4">
+          <div className="text-sm">
+            <span className="font-semibold text-green-600">{estudiantes.length}</span>
+            <span className="text-muted-foreground ml-1">
+              estudiante{estudiantes.length !== 1 ? 's' : ''} con 100% de asistencia
+            </span>
           </div>
-        ))}
+          <div className="text-xs text-muted-foreground">
+            {nombreMeses[mes - 1]} {año}
+          </div>
+        </div>
+        <Badge variant="secondary" className="text-xs">
+          Ordenado por apellidos
+        </Badge>
       </div>
-    </ScrollArea>
+
+      {/* Tabla de estudiantes */}
+      <ScrollArea className="h-64">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="font-semibold w-[50%]">Nombre del Estudiante</TableHead>
+              <TableHead className="font-semibold text-center w-[20%]">Curso</TableHead>
+              <TableHead className="text-right font-semibold w-[30%]">Días Asistidos</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {estudiantesOrdenados.map((estudiante) => (
+              <TableRow key={estudiante.id} className="hover:bg-muted/50 transition-colors">
+                <TableCell className="font-medium py-3 pr-4">
+                  <div className="truncate max-w-[280px]" title={estudiante.nombreCompleto}>
+                    {estudiante.nombreCompleto}
+                  </div>
+                </TableCell>
+                <TableCell className="text-center py-3">
+                  <Badge variant="outline" className="text-xs font-medium">
+                    {estudiante.curso}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right py-3 pl-4">
+                  <div className="flex items-center justify-end gap-3">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      {estudiante.diasPresente}/{estudiante.diasRegistrados}
+                    </span>
+                    <Badge variant="secondary" className="text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 border-green-200 dark:border-green-800">
+                      100%
+                    </Badge>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </div>
   );
 }
