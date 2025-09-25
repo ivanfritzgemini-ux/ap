@@ -70,7 +70,7 @@ export default function LoginPage() {
     <Card className="mx-auto max-w-sm">
       <CardHeader className="text-center">
         <EstablishmentLogo 
-          className="mx-auto h-16 sm:h-24 md:h-32 lg:h-40"
+          className="mx-auto h-14 sm:h-20 md:h-28 lg:h-36"
           alt="Polivalente Digital logo"
         />
   <CardTitle className="text-2xl font-headline mt-2">Acceder a Polivalente Digital</CardTitle>
