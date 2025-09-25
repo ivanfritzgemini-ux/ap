@@ -69,6 +69,7 @@ interface Student {
   enrollment_date: string;
   fecha_retiro?: string;
   motivo_retiro?: string;
+  tiene_traslado?: boolean;
 }
 
 // Tipo para el diálogo de cambio de curso
@@ -754,9 +755,9 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>Importar Estudiantes desde CSV</DialogTitle>
-                <div className="text-sm text-muted-foreground">
+                <DialogDescription>
                   Sube un archivo CSV con los datos de estudiantes para importar en masa.
-                </div>
+                </DialogDescription>
               </DialogHeader>
               
               {!importResults ? (
@@ -982,9 +983,9 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>{editingStudentId ? 'Editar Estudiante' : 'Matricular Estudiante'}</DialogTitle>
-              <div className="text-sm text-muted-foreground">
+              <DialogDescription>
                 {editingStudentId ? 'Modifique los detalles del estudiante.' : 'Rellene los detalles para matricular un nuevo estudiante.'}
-              </div>
+              </DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
                 <div className="space-y-4">
@@ -1140,7 +1141,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Retirar Estudiante</DialogTitle>
-              <div className="text-sm text-muted-foreground">Registre la fecha de retiro y el motivo. Esto marcará al estudiante como retirado.</div>
+              <DialogDescription>Registre la fecha de retiro y el motivo. Esto marcará al estudiante como retirado.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
               <div className="grid gap-2">
@@ -1219,7 +1220,21 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                 <TableCell className="font-medium px-2">
                   <div className="flex items-center gap-2 h-full py-2">
                     <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
-                    {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
+                    {/* Badge de Traslado - para estudiantes activos con historial de traslado o retirados por traslado */}
+                    {(student.tiene_traslado && !student.fecha_retiro) || 
+                     (student.fecha_retiro && student.motivo_retiro && (
+                       student.motivo_retiro.toLowerCase().includes('traslado') || 
+                       student.motivo_retiro.toLowerCase().includes('cambio de curso')
+                     )) ? 
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">Traslado</Badge> : null
+                    }
+                    {/* Badge de Retirado - solo para estudiantes retirados por otras razones */}
+                    {student.fecha_retiro && !(student.motivo_retiro && (
+                      student.motivo_retiro.toLowerCase().includes('traslado') || 
+                      student.motivo_retiro.toLowerCase().includes('cambio de curso')
+                    )) ? 
+                      <Badge variant="destructive">Retirado</Badge> : null
+                    }
                   </div>
                 </TableCell>
                 <TableCell className="hidden lg:table-cell px-2">{student.sexo}</TableCell>

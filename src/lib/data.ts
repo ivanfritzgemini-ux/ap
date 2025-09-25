@@ -93,16 +93,22 @@ export async function getStudents(): Promise<Student[]> {
     // tipo_educacion may be an array; normalize to string
     const tipoObj = Array.isArray(cursosRel?.tipo_educacion) ? cursosRel.tipo_educacion[0] : cursosRel?.tipo_educacion
     const tipoEducacion = tipoObj?.nombre ?? '';
-    let nombreAbreviado = tipoEducacion;
-    if (typeof tipoEducacion === 'string' && tipoEducacion.includes('Media')) {
-      nombreAbreviado = 'Medio';
-    }
+
+    // Verificar si el estudiante tiene historial de traslados internos
+    const tieneTraslado = matriculas.some(m => 
+      m.motivo_retiro && (
+        m.motivo_retiro.toLowerCase().includes('traslado') ||
+        m.motivo_retiro.toLowerCase().includes('cambio de curso')
+      )
+    );
 
     return {
       id: estudianteId,
       // Si no tiene matrícula activa, mostrar datos de retiro de la matrícula más reciente
       fecha_retiro: matriculaActiva ? undefined : matriculaRelevante.fecha_retiro ?? undefined,
       motivo_retiro: matriculaActiva ? undefined : matriculaRelevante.motivo_retiro ?? undefined,
+      // Incluir información de traslado para estudiantes activos
+      tiene_traslado: tieneTraslado,
       registration_number: matriculaRelevante.nro_registro,
       rut: usuariosRel?.rut ?? 'N/A',
       nombres: usuariosRel?.nombres ?? 'N/A',
@@ -111,7 +117,16 @@ export async function getStudents(): Promise<Student[]> {
   // sexo relation may be an array as well
   // @ts-ignore - dynamic relation shape from Supabase
   sexo: (Array.isArray(usuariosRel?.sexo) ? usuariosRel.sexo[0]?.nombre : usuariosRel?.sexo?.nombre) ?? 'N/A',
-      curso: cursosRel ? `${cursosRel.nivel}º ${nombreAbreviado} ${cursosRel.letra}` : 'Sin curso',
+      curso: cursosRel ? (() => {
+        // Aplicar mismo formato que en getCourseDetails
+        if (tipoEducacion && tipoEducacion.toLowerCase().includes('enseñanza media técnico')) {
+          return `${cursosRel.nivel}º Medio TP ${cursosRel.letra}`;
+        } else if (tipoEducacion && tipoEducacion.toLowerCase().includes('educación media')) {
+          return `${cursosRel.nivel}º Medio ${cursosRel.letra}`;
+        } else {
+          return `${cursosRel.nivel} ${cursosRel.letra}`;
+        }
+      })() : 'Sin curso',
       enrollment_date: matriculaRelevante.fecha_matricula,
     };
   });
@@ -125,6 +140,7 @@ export async function getCourseDetails(id: string) {
       id,
       nivel,
       letra,
+      tipo_educacion:tipo_educacion_id(nombre),
       profesor_jefe:profesor_jefe_id(id, usuarios ( id, nombres, apellidos ))
     `)
     .eq('id', id)
@@ -136,7 +152,18 @@ export async function getCourseDetails(id: string) {
   }
 
   const c = cursosData as any;
-  const nombre_curso = [c.nivel ?? '', c.letra ?? ''].filter(Boolean).join(' ').trim();
+  
+  // Aplicar formato de nombre según la consulta SQL proporcionada
+  let nombre_curso = '';
+  const tipoEducacion = Array.isArray(c.tipo_educacion) ? c.tipo_educacion[0]?.nombre : c.tipo_educacion?.nombre;
+  
+  if (tipoEducacion && tipoEducacion.toLowerCase().includes('enseñanza media técnico')) {
+    nombre_curso = `${c.nivel}º Medio TP ${c.letra}`;
+  } else if (tipoEducacion && tipoEducacion.toLowerCase().includes('educación media')) {
+    nombre_curso = `${c.nivel}º Medio ${c.letra}`;
+  } else {
+    nombre_curso = `${c.nivel} ${c.letra}`;
+  }
 
   let profesorJefeName: string | null = null;
   // Safer data access
@@ -242,4 +269,74 @@ export async function getStudentsByCourse(courseId: string) {
     withdrawal_date: item.withdrawal_date,
     name: item.name,
   }));
+}
+
+export async function getCourseStatistics(courseId: string) {
+  const supabase = await createServerClient();
+
+  try {
+    // Obtener todos los estudiantes del curso para hacer el conteo
+    const { data: estudiantes, error } = await supabase
+      .from('estudiantes_detalles')
+      .select(`
+        id,
+        es_matricula_actual,
+        usuarios!estudiante_id (
+          id,
+          sexo_id,
+          rol_id
+        )
+      `)
+      .eq('curso_id', courseId)
+      .eq('usuarios.rol_id', 'd27e310f-0e44-4c6a-83fd-a3db125ba142'); // rol estudiante
+
+    if (error) {
+      console.error('Error fetching course students:', error);
+      return {
+        totalActivos: 0,
+        totalRetirados: 0,
+        totalFemeninos: 0,
+        totalMasculinos: 0,
+      };
+    }
+
+    // Contar estadísticas
+    let totalActivos = 0;
+    let totalRetirados = 0;
+    let totalFemeninos = 0;
+    let totalMasculinos = 0;
+
+    estudiantes.forEach((estudiante: any) => {
+      const usuario = Array.isArray(estudiante.usuarios) ? estudiante.usuarios[0] : estudiante.usuarios;
+      
+      if (estudiante.es_matricula_actual) {
+        totalActivos++;
+        
+        // Contar por género solo para estudiantes activos
+        if (usuario?.sexo_id === 'a96401ae-e227-4a1d-9978-d87faa1bb2c2') {
+          totalFemeninos++;
+        } else if (usuario?.sexo_id === 'c871e0f9-ec4e-4039-9287-027340665d1c') {
+          totalMasculinos++;
+        }
+      } else {
+        totalRetirados++;
+      }
+    });
+
+    return {
+      totalActivos,
+      totalRetirados,
+      totalFemeninos,
+      totalMasculinos,
+    };
+
+  } catch (error) {
+    console.error('Error fetching course statistics:', error);
+    return {
+      totalActivos: 0,
+      totalRetirados: 0,
+      totalFemeninos: 0,
+      totalMasculinos: 0,
+    };
+  }
 }

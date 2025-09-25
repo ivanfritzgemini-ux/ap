@@ -49,10 +49,19 @@ export async function GET() {
       const id = c.id
       const nivel = c.nivel ?? ''
       const letra = c.letra ?? ''
-      const nombre_curso = [nivel, letra].filter(Boolean).join(' ').trim()
-
+      
       // tipo_educacion may come as array or object
       const tipo = Array.isArray(c.tipo_educacion) ? c.tipo_educacion[0]?.nombre : c.tipo_educacion?.nombre
+      
+      // Aplicar formato de nombre según la consulta SQL proporcionada
+      let nombre_curso = '';
+      if (tipo && tipo.toLowerCase().includes('enseñanza media técnico')) {
+        nombre_curso = `${nivel}º Medio TP ${letra}`;
+      } else if (tipo && tipo.toLowerCase().includes('educación media')) {
+        nombre_curso = `${nivel}º Medio ${letra}`;
+      } else {
+        nombre_curso = `${nivel} ${letra}`;
+      }
 
       // profesor_jefe relation may be array or object; its usuarios subrelation contains names
       let profesorJefeName: string | null = null

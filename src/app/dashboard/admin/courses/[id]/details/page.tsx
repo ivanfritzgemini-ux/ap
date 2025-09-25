@@ -1,4 +1,4 @@
-import { getCourseDetails, getStudentsByCourse } from '@/lib/data';
+import { getCourseDetails, getStudentsByCourse, getCourseStatistics } from '@/lib/data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { notFound } from 'next/navigation';
@@ -19,12 +19,28 @@ const formatDate = (dateString: string | null | undefined) => {
   }
 };
 
+const formatCourseName = (course: any) => {
+  if (!course.nivel || !course.letra) return course.nombre_curso;
+  
+  // Verificar si es Educación Media
+  const tipoEducacion = course.tipo_educacion || '';
+  const isEducacionMedia = tipoEducacion.toLowerCase().includes('educación media') || 
+                          tipoEducacion.toLowerCase().includes('educacion media');
+  
+  if (isEducacionMedia) {
+    return `${course.nivel}º Medio ${course.letra}`;
+  } else {
+    return `${course.nivel} ${course.letra}`;
+  }
+};
+
 export default async function CourseDetailsPage({ params }: { params: { id: string } }) {
   const { id } = await params;
 
-  const [course, students] = await Promise.all([
+  const [course, students, statistics] = await Promise.all([
     getCourseDetails(id),
-    getStudentsByCourse(id)
+    getStudentsByCourse(id),
+    getCourseStatistics(id)
   ]);
 
   if (!course) {
@@ -49,11 +65,34 @@ export default async function CourseDetailsPage({ params }: { params: { id: stri
         <CardContent className="space-y-2 text-sm md:text-base">
           <div className="flex justify-between">
             <span className="font-semibold">Nombre del Curso:</span>
-            <span>{course.nombre_curso}</span>
+            <span>{formatCourseName(course)}</span>
           </div>
           <div className="flex justify-between">
             <span className="font-semibold">Profesor Jefe:</span>
             <span>{course.profesor_jefe || 'No asignado'}</span>
+          </div>
+          
+          {/* Separador */}
+          <div className="border-t pt-2 mt-4">
+            <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide mb-2">Estadísticas</h3>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="font-semibold">Activos:</span>
+                <span>{statistics.totalActivos}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Retirados:</span>
+                <span>{statistics.totalRetirados}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Femeninos:</span>
+                <span>{statistics.totalFemeninos}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold">Masculinos:</span>
+                <span>{statistics.totalMasculinos}</span>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

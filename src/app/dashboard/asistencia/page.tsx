@@ -1535,11 +1535,34 @@ export default function AsistenciaMensualPage() {
                     <SelectValue placeholder="Seleccionar un curso" />
                   </SelectTrigger>
                   <SelectContent>
-                    {cursos.map((curso) => (
-                      <SelectItem key={curso.id} value={curso.id}>
-                        {curso.nombre_curso} - {curso.tipo_ensenanza}
-                      </SelectItem>
-                    ))}
+                    {cursos
+                      .sort((a, b) => {
+                        // Extraer nivel y letra del nombre del curso
+                        const extractNivelLetra = (nombreCurso: string) => {
+                          const match = nombreCurso.match(/(\d+).*?([A-Z])$/i) || nombreCurso.match(/(\d+).*?([A-Z])/i);
+                          if (match) {
+                            return { nivel: parseInt(match[1]), letra: match[2].toUpperCase() };
+                          }
+                          // Si no tiene el formato esperado, usar el nombre completo para ordenar
+                          return { nivel: 999, letra: nombreCurso };
+                        };
+
+                        const nivelLetraA = extractNivelLetra(a.nombre_curso);
+                        const nivelLetraB = extractNivelLetra(b.nombre_curso);
+
+                        // Primero ordenar por nivel
+                        if (nivelLetraA.nivel !== nivelLetraB.nivel) {
+                          return nivelLetraA.nivel - nivelLetraB.nivel;
+                        }
+                        
+                        // Si el nivel es igual, ordenar por letra
+                        return nivelLetraA.letra.localeCompare(nivelLetraB.letra);
+                      })
+                      .map((curso) => (
+                        <SelectItem key={curso.id} value={curso.id}>
+                          {curso.nombre_curso} - {curso.tipo_ensenanza}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

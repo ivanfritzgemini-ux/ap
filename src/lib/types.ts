@@ -36,6 +36,11 @@ export interface Student {
   enrollment_date: string;
   fecha_retiro?: string;
   motivo_retiro?: string;
+  tiene_traslado?: boolean;
+  // Campos adicionales para getStudentsByCourse
+  name?: string;
+  withdrawal_date?: string;
+  apellido?: string;
 }
 
 export interface Asignatura {
