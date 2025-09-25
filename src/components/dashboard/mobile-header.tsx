@@ -1,7 +1,7 @@
 "use client";
 
 import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
-import Logo from "@/components/logo";
+import { EstablishmentLogo } from "@/components/establishment-logo";
 
 export function MobileHeader() {
   const { openMobile } = useSidebar();
@@ -11,7 +11,7 @@ export function MobileHeader() {
   return (
     <header className="md:hidden flex items-center justify-between p-2 border-b">
       <div className="flex items-center gap-2">
-  <Logo className="h-6" />
+  <EstablishmentLogo className="h-6" />
   <span className="text-xl font-headline font-semibold">Polivalente Digital</span>
       </div>
       <SidebarTrigger />

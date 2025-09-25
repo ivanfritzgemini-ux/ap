@@ -1,7 +1,7 @@
 import { SidebarProvider, Sidebar, SidebarInset, SidebarFooter, SidebarContent, SidebarTrigger } from "@/components/ui/sidebar"
 import { SidebarNav } from "@/components/dashboard/sidebar-nav"
 import { UserNav } from "@/components/dashboard/user-nav"
-import Logo from "@/components/logo"
+import { EstablishmentLogo } from "@/components/establishment-logo"
 import { MobileHeader } from "@/components/dashboard/mobile-header"
 import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
@@ -59,7 +59,7 @@ export default async function DashboardLayout({
         <div className="flex flex-col h-full">
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Logo className="h-6" />
+              <EstablishmentLogo className="h-6" />
               <span className="text-xl font-headline font-semibold group-data-[state=collapsed]:hidden">Polivalente Digital</span>
             </div>
              <SidebarTrigger className="md:hidden" />

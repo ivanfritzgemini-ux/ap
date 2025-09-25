@@ -24,7 +24,7 @@ import { Users, Briefcase, ClipboardCheck, ArrowUpRight, ArrowUp, ArrowDown, Use
 import { AsistenciaPerfectaCard } from '@/components/dashboard/asistencia-perfecta-card'
 import { ResumenAsistenciaCard } from '@/components/dashboard/resumen-asistencia-card'
 import { TendenciaAsistenciaCard } from '@/components/dashboard/tendencia-asistencia-card'
-import Logo from "@/components/logo"
+import { EstablishmentLogo } from "@/components/establishment-logo"
 import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
 import { MonthlyMovementsWrapper } from '@/components/dashboard/monthly-movements-wrapper'
 import { createServerClient } from "@/lib/supabase/server"

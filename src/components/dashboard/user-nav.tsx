@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface UserNavProps {
   user: User;
@@ -44,9 +45,11 @@ export function UserNav({ user }: UserNavProps) {
 
        <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
-              <UserCircle className="h-5 w-5" />
-            </Button>
+            <Link href="/dashboard/mi-cuenta">
+              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
+                <UserCircle className="h-5 w-5" />
+              </Button>
+            </Link>
           </TooltipTrigger>
           <TooltipContent side="right" align="center">Mi Cuenta</TooltipContent>
         </Tooltip>
@@ -81,10 +84,12 @@ export function UserNav({ user }: UserNavProps) {
         <Bell className="h-5 w-5" />
         <span>Notificaciones</span>
       </Button>
-      <Button variant="ghost" className="w-full justify-start items-center gap-3 p-2 h-auto">
-        <UserCircle className="h-5 w-5" />
-        <span>Mi Cuenta</span>
-      </Button>
+      <Link href="/dashboard/mi-cuenta">
+        <Button variant="ghost" className="w-full justify-start items-center gap-3 p-2 h-auto">
+          <UserCircle className="h-5 w-5" />
+          <span>Mi Cuenta</span>
+        </Button>
+      </Link>
        <Button variant="ghost" className="w-full justify-start items-center gap-3 p-2 h-auto" onClick={handleLogout}>
         <LogOut className="h-5 w-5" />
         <span>Cerrar Sesión</span>

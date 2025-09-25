@@ -9,6 +9,10 @@ export interface User {
   rut?: string;
   gender?: 'Masculino' | 'Femenino';
   course?: string;
+  telefono?: string;
+  direccion?: string;
+  fecha_nacimiento?: string;
+  foto_perfil?: string;
 }
 
 export interface Course {

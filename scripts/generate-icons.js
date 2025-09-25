@@ -3,7 +3,7 @@ const path = require('path');
 const sharp = require('sharp');
 const pngToIco = require('png-to-ico');
 
-const src = path.join(__dirname, '..', 'public', 'polivalente logo c.png');
+const src = path.join(__dirname, '..', 'public', 'uploads', 'logos', 'polivalente-logo-c.png');
 const outDir = path.join(__dirname, '..', 'public');
 
 (async () => {

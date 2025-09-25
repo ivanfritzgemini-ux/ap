@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { EstablishmentLogo } from "@/components/establishment-logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -68,10 +69,9 @@ export default function LoginPage() {
   return (
     <Card className="mx-auto max-w-sm">
       <CardHeader className="text-center">
-        <img
-          src="/polivalente logo c.png"
+        <EstablishmentLogo 
+          className="mx-auto h-16 sm:h-24 md:h-32 lg:h-40"
           alt="Polivalente Digital logo"
-          className="mx-auto h-8 sm:h-12 md:h-16 lg:h-20 object-contain w-auto"
         />
   <CardTitle className="text-2xl font-headline mt-2">Acceder a Polivalente Digital</CardTitle>
         <CardDescription>

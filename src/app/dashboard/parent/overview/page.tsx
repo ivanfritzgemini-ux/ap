@@ -8,7 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Bell, CalendarCheck, CheckCircle } from "lucide-react";
-import Logo from "@/components/logo";
+import { EstablishmentLogo } from "@/components/establishment-logo";
 import { Separator } from "@/components/ui/separator";
 
 export default function ParentOverviewPage() {
@@ -41,21 +41,21 @@ export default function ParentOverviewPage() {
             <ul className="space-y-3">
               <li className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Logo className="h-5 text-muted-foreground" />
+                  <EstablishmentLogo className="h-5 text-muted-foreground" />
                   <span>Matemáticas - Examen de Álgebra</span>
                 </div>
                 <Badge variant="secondary" className="font-bold text-base">A-</Badge>
               </li>
               <li className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Logo className="h-5 text-muted-foreground" />
+                  <EstablishmentLogo className="h-5 text-muted-foreground" />
                   <span>Física - Laboratorio de Cinemática</span>
                 </div>
                 <Badge variant="secondary" className="font-bold text-base">B+</Badge>
               </li>
               <li className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Logo className="h-5 text-muted-foreground" />
+                  <EstablishmentLogo className="h-5 text-muted-foreground" />
                   <span>Inglés - Ensayo de Literatura</span>
                 </div>
                 <Badge variant="secondary" className="font-bold text-base">A</Badge>

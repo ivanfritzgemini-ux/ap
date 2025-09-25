@@ -65,7 +65,13 @@ export function EstablecimientoManagementClient({ establecimiento, periodos: ini
 
   React.useEffect(() => {
     setForm(establecimiento ?? {})
-    setLogoPreview(establecimiento?.logo ?? null)
+    // Si el logo existe, asegurar que tenga la URL correcta
+    let logoUrl = establecimiento?.logo
+    if (logoUrl && !logoUrl.startsWith('http') && !logoUrl.startsWith('/')) {
+      // Si es un path relativo, agregarlo a la ruta correcta
+      logoUrl = `/uploads/logos/${logoUrl}`
+    }
+    setLogoPreview(logoUrl ?? null)
   }, [establecimiento])
 
   // confirmation dialog state
@@ -103,10 +109,15 @@ export function EstablecimientoManagementClient({ establecimiento, periodos: ini
     if (!file) return
     try {
       const json = await uploadFile(file)
+      // Guardar solo el path en la base de datos
       setForm(prev => ({ ...prev, logo: json.path }))
+      // Pero mostrar la URL completa en el preview
       setLogoPreview(json.publicUrl || json.path)
       toast({ title: 'Logo subido', description: 'Se ha subido el logo correctamente.' })
-    } catch (err: any) { toast({ title: 'Error al subir', description: err.message || 'No se pudo subir el archivo.' }) }
+    } catch (err: any) { 
+      console.error('Error uploading logo:', err)
+      toast({ title: 'Error al subir', description: err.message || 'No se pudo subir el archivo.' }) 
+    }
   }
 
   const validateAndSave = async () => {
@@ -247,11 +258,39 @@ export function EstablecimientoManagementClient({ establecimiento, periodos: ini
               <div>
                   <Label>Logo</Label>
                   <div className='mt-2 flex items-center gap-3'>
-                    <Button variant='outline' size='sm' onClick={() => fileInputRef.current?.click()}>Seleccionar archivo</Button>
-                    <div className='text-sm text-muted-foreground'>{form.logo ? 'Archivo seleccionado' : 'Ningún archivo'}</div>
+                    <Button 
+                      variant='outline' 
+                      size='sm' 
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      {uploading ? 'Subiendo...' : 'Seleccionar archivo'}
+                    </Button>
+                    <div className='text-sm text-muted-foreground'>
+                      {uploading ? 'Procesando imagen...' : (form.logo ? 'Archivo seleccionado' : 'Ningún archivo')}
+                    </div>
                   </div>
-                  <input ref={fileInputRef} type="file" accept="image/*" className='hidden' onChange={(e) => handleFile(e.target.files?.[0])} />
-                  {logoPreview && <img src={logoPreview} alt="logo" className="mt-3 h-28 object-contain rounded-md border" />}
+                  <input 
+                    ref={fileInputRef} 
+                    type="file" 
+                    accept="image/*" 
+                    className='hidden' 
+                    onChange={(e) => handleFile(e.target.files?.[0])}
+                    disabled={uploading}
+                  />
+                  {logoPreview && (
+                    <div className="mt-3">
+                      <img 
+                        src={logoPreview} 
+                        alt="Logo del establecimiento" 
+                        className="h-28 object-contain rounded-md border border-border/20"
+                        onError={(e) => {
+                          console.error('Error loading logo image:', logoPreview);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               <div className="flex justify-end">
                 <Button onClick={validateAndSave} disabled={uploading} variant='default' size='default'>Guardar Cambios</Button>
