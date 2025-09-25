@@ -129,9 +129,13 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
      </div>
      
      {/* Nueva sección para tarjetas de asistencia */}
-     <div className="grid gap-6 lg:grid-cols-3">
+     <div className="grid gap-6 lg:grid-cols-2">
         <ResumenAsistenciaCard />
         <TendenciaAsistenciaCard />
+     </div>
+     
+     {/* Tarjeta de asistencia semanal */}
+     <div className="grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

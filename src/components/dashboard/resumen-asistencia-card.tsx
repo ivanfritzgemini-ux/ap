@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { CalendarCheck, UserCheck, Users, AlertTriangle } from "lucide-react";
+import { AttendanceGauge } from "./attendance-gauge";
 
 interface ResumenAsistencia {
   mes: string;
@@ -88,13 +89,6 @@ export function ResumenAsistenciaCard() {
     return meses[mes - 1];
   };
 
-  const getProgressColor = (porcentaje: number): string => {
-    if (porcentaje >= 90) return "bg-green-500";
-    if (porcentaje >= 85) return "bg-green-400";
-    if (porcentaje >= 80) return "bg-yellow-400";
-    return "bg-red-500";
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -117,70 +111,85 @@ export function ResumenAsistenciaCard() {
           </div>
         ) : data ? (
           <div className="space-y-6">
-            {/* Estadísticas generales */}
-            <div className="flex flex-col space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <div className="font-medium">Asistencia promedio</div>
-                <div className="font-bold">{data.asistenciaPromedio}%</div>
-              </div>
-              <Progress 
-                value={data.asistenciaPromedio} 
-                max={100}
-                className="h-2"
-                indicatorClassName={getProgressColor(data.asistenciaPromedio)}
-              />
-              <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                <div>
-                  <UserCheck className="h-3.5 w-3.5 inline-block mr-1" />
-                  {data.diasHabiles} días hábiles
-                </div>
-                <div>
-                  <Users className="h-3.5 w-3.5 inline-block mr-1" />
-                  {data.cursos.length} cursos
-                </div>
-              </div>
+            {/* Gauge de asistencia promedio - Centrado arriba */}
+            <div className="flex justify-center">
+              <AttendanceGauge percentage={data.asistenciaPromedio} size={260} />
             </div>
-
-            {/* Cursos con mejor y peor asistencia */}
-            <div className="space-y-3">
-              <div className="text-sm font-medium">Asistencia por curso</div>
-              
-              {/* Cursos ordenados por asistencia (primero los 5 mejores) */}
-              <div className="space-y-2.5">
-                {data.cursos
-                  .sort((a, b) => b.asistenciaPromedio - a.asistenciaPromedio)
-                  .slice(0, 5)
-                  .map(curso => (
-                    <div key={curso.id} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <div>{curso.nombre}</div>
-                        <div className={`font-medium ${
-                          curso.asistenciaPromedio < 80 ? 'text-red-500' : 
-                          curso.asistenciaPromedio >= 90 ? 'text-green-500' : ''
-                        }`}>
-                          {curso.asistenciaPromedio}%
-                        </div>
-                      </div>
-                      <Progress 
-                        value={curso.asistenciaPromedio} 
-                        max={100}
-                        className="h-1"
-                        indicatorClassName={getProgressColor(curso.asistenciaPromedio)}
-                      />
-                    </div>
-                  ))
-                }
+            
+            {/* Información adicional - Debajo del gauge */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <UserCheck className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs font-medium text-muted-foreground">Días Hábiles</span>
+                  </div>
+                  <div className="text-lg font-bold text-blue-600">{data.diasHabiles}</div>
+                </div>
+                
+                <div className="text-center p-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Users className="h-4 w-4 text-green-500" />
+                    <span className="text-xs font-medium text-muted-foreground">Total Cursos</span>
+                  </div>
+                  <div className="text-lg font-bold text-green-600">{data.cursos.length}</div>
+                </div>
               </div>
-
+              
               {/* Alerta de cursos con problemas */}
               {data.cursosConProblemas > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-500 mt-2">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  <span>
+                <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm text-amber-700 dark:text-amber-300">
                     {data.cursosConProblemas} curso{data.cursosConProblemas !== 1 ? 's' : ''} con asistencia crítica (menos del 80%)
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* Top 3 cursos con mejor asistencia */}
+            <div className="space-y-3">
+              <div className="text-sm font-medium">Top 3 Cursos - Mejor Asistencia</div>
+              
+              {/* Cursos en formato más compacto */}
+              <div className="grid gap-2">
+                {data.cursos
+                  .sort((a, b) => b.asistenciaPromedio - a.asistenciaPromedio)
+                  .slice(0, 3)
+                  .map((curso, index) => (
+                    <div key={curso.id} className="flex items-center justify-between p-2 bg-muted/20 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                          index === 0 ? 'bg-yellow-500' : 
+                          index === 1 ? 'bg-gray-400' : 
+                          'bg-amber-600'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <span className="text-xs font-medium truncate">{curso.nombre}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`text-xs font-bold ${
+                          curso.asistenciaPromedio >= 95 ? 'text-green-600' :
+                          curso.asistenciaPromedio >= 90 ? 'text-green-500' :
+                          curso.asistenciaPromedio >= 85 ? 'text-yellow-500' :
+                          curso.asistenciaPromedio >= 80 ? 'text-orange-500' :
+                          'text-red-500'
+                        }`}>
+                          {curso.asistenciaPromedio}%
+                        </div>
+                        <div className="text-xs">
+                          {curso.asistenciaPromedio >= 95 ? '🏆' :
+                           curso.asistenciaPromedio >= 90 ? '✅' :
+                           curso.asistenciaPromedio >= 85 ? '⚡' :
+                           curso.asistenciaPromedio >= 80 ? '⚠️' :
+                           '🚨'}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
             </div>
           </div>
         ) : (
