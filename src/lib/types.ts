@@ -13,10 +13,11 @@ export interface User {
 
 export interface Course {
     id: string;
-    name: string;
-    teachingType: string;
-    headTeacher: string;
-    studentCount: number;
+    name?: string;
+    nombre_curso?: string;  // Para la API de cursos
+    teachingType?: string;
+    headTeacher?: string;
+    studentCount?: number;
 }
 
 export interface Student {
@@ -31,4 +32,27 @@ export interface Student {
   enrollment_date: string;
   fecha_retiro?: string;
   motivo_retiro?: string;
+}
+
+export interface Asignatura {
+  id: string;
+  curso_asignatura_id?: string; // ID de la relación para operaciones
+  nombre: string;
+  descripcion?: string;
+  curso: {
+    id: string;
+    nombre: string;
+  } | null;
+  profesor: {
+    id: string;
+    nombre: string;
+    email: string;
+  } | null;
+}
+
+export interface Teacher {
+  id: string;
+  nombre: string;
+  email: string;
+  especialidad?: string;
 }

@@ -38,6 +38,7 @@ const navItems = {
     { href: '/dashboard/admin/students', label: 'Estudiantes', icon: GraduationCap },
     { href: '/dashboard/admin/teachers', label: 'Profesores', icon: Briefcase },
     { href: '/dashboard/admin/courses', label: 'Cursos', icon: School },
+    { href: '/dashboard/asignaturas', label: 'Asignaturas', icon: Book },
     { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
     { href: '/dashboard/asistencia', label: 'Asistencia', icon: ClipboardCheck },
     { href: '#', label: 'Reportes', icon: BarChart2 },
@@ -48,6 +49,7 @@ const navItems = {
     teacher: [
     { href: '/dashboard/asistencia', label: 'Asistencia', icon: ClipboardCheck },
     { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: BookOpen },
+    { href: '/dashboard/asignaturas', label: 'Asignaturas', icon: Book },
     { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
   ],
   parent: [
