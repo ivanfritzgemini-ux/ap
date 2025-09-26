@@ -1,11 +1,13 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Line, LineChart, ComposedChart } from "recharts"
 
 interface CourseData {
   curso: string
   estudiantes: number
+  masculinos: number
+  femeninos: number
   cursoId: number
 }
 
@@ -48,7 +50,7 @@ export function StudentsByCourseChart() {
 
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+      <ComposedChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
         <XAxis 
           dataKey="curso" 
@@ -75,16 +77,37 @@ export function StudentsByCourseChart() {
             borderColor: 'hsl(var(--border))',
             borderRadius: '8px',
           }}
-          formatter={(value: any) => [value, 'Estudiantes']}
+          formatter={(value: any, name: string) => {
+            if (name === 'Masculinos') return [value, 'Masculinos']
+            if (name === 'Femeninos') return [value, 'Femeninas']
+            if (name === 'Total') return [value, 'Total Estudiantes']
+            return [value, 'Total']
+          }}
           labelFormatter={(label) => `Curso: ${label}`}
         />
         <Bar 
-          dataKey="estudiantes" 
+          dataKey="masculinos" 
+          stackId="gender"
           fill="#3b82f6" 
-          radius={[4, 4, 0, 0]}
-          name="Estudiantes"
+          radius={[0, 0, 0, 0]}
+          name="Masculinos"
         />
-      </BarChart>
+        <Bar 
+          dataKey="femeninos" 
+          stackId="gender"
+          fill="#ec4899" 
+          radius={[4, 4, 0, 0]}
+          name="Femeninos"
+        />
+        <Line 
+          type="monotone" 
+          dataKey="estudiantes" 
+          stroke="#f59e0b" 
+          strokeWidth={3}
+          dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }}
+          name="Total"
+        />
+      </ComposedChart>
     </ResponsiveContainer>
   )
 }

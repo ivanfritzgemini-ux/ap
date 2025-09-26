@@ -13,18 +13,39 @@ export async function GET() {
       return NextResponse.json([])
     }
 
-    // Obtener estudiantes activos agrupados por curso
+    // Obtener estudiantes activos con información de género agrupados por curso
     const { data: studentRows } = await supabase
       .from('estudiantes_detalles')
-      .select('curso_id')
+      .select(`
+        curso_id,
+        usuarios(sexo_id)
+      `)
       .eq('es_matricula_actual', true)
 
-    // Contar estudiantes por curso
-    const countsMap: Record<string, number> = {}
+    // IDs de género
+    const FEMALE_ID = 'a96401ae-e227-4a1d-9978-d87faa1bb2c2'
+    const MALE_ID = 'c871e0f9-ec4e-4039-9287-027340665d1c'
+
+    // Contar estudiantes por curso y género
+    const countsMap: Record<string, { total: number; masculinos: number; femeninos: number }> = {}
+    
     if (Array.isArray(studentRows)) {
       for (const row of studentRows as any[]) {
         const key = String(row.curso_id)
-        countsMap[key] = (countsMap[key] || 0) + 1
+        const usuario = Array.isArray(row.usuarios) ? row.usuarios[0] : row.usuarios
+        const sexoId = usuario?.sexo_id
+        
+        if (!countsMap[key]) {
+          countsMap[key] = { total: 0, masculinos: 0, femeninos: 0 }
+        }
+        
+        countsMap[key].total++
+        
+        if (sexoId === MALE_ID) {
+          countsMap[key].masculinos++
+        } else if (sexoId === FEMALE_ID) {
+          countsMap[key].femeninos++
+        }
       }
     }
 
@@ -36,9 +57,13 @@ export async function GET() {
                         course.nombre || 
                         `Curso ${course.id}`
       
+      const courseStats = countsMap[String(course.id)] || { total: 0, masculinos: 0, femeninos: 0 }
+      
       return {
         curso: courseName,
-        estudiantes: countsMap[String(course.id)] ?? 0,
+        estudiantes: courseStats.total,
+        masculinos: courseStats.masculinos,
+        femeninos: courseStats.femeninos,
         cursoId: course.id
       }
     }).sort((a, b) => {
