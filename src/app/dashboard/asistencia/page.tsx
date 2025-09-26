@@ -1560,7 +1560,7 @@ export default function AsistenciaMensualPage() {
                       })
                       .map((curso) => (
                         <SelectItem key={curso.id} value={curso.id}>
-                          {curso.nombre_curso} - {curso.tipo_ensenanza}
+                          {curso.nombre_curso}
                         </SelectItem>
                       ))}
                   </SelectContent>

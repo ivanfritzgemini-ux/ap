@@ -3,10 +3,11 @@ import { getStudentsByCourse } from '@/lib/data';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const students = await getStudentsByCourse(params.id);
+    const { id } = await params;
+    const students = await getStudentsByCourse(id);
     
     return NextResponse.json({ data: students });
   } catch (error) {
