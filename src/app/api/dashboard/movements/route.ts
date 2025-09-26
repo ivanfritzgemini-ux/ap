@@ -21,37 +21,100 @@ export async function GET(req: Request) {
     const now = new Date()
     const year = now.getFullYear()
     
-    // Calcular el último día del mes correctamente
-    const lastDayOfMonth = new Date(Date.UTC(year, m + 1, 0)).getDate()
-    const from = new Date(Date.UTC(year, m, 1, 0, 0, 0)).toISOString().split('T')[0] // YYYY-MM-DD formato
-    const to = new Date(Date.UTC(year, m, lastDayOfMonth, 23, 59, 59)).toISOString().split('T')[0] // YYYY-MM-DD formato
+    // Calcular fechas: desde el primer día del mes hasta el primer día del mes siguiente
+    const from = new Date(Date.UTC(year, m, 1, 0, 0, 0)).toISOString() // YYYY-MM-DDTHH:mm:ss.sssZ formato
+    const to = new Date(Date.UTC(year, m + 1, 1, 0, 0, 0)).toISOString() // Primer día del mes siguiente
 
-    // Count ingresos: SELECT COUNT(*) AS matriculados_marzo FROM estudiantes_detalles WHERE fecha_matricula BETWEEN '2025-03-01' AND '2025-03-31'
-    const ingresosRes = await supabase
-      .from('estudiantes_detalles')
-      .select('id', { count: 'exact', head: false })
-      .gte('fecha_matricula', from)
-      .lte('fecha_matricula', to)
+    // Count ingresos: Para marzo usa consulta simple, otros meses usan lógica de duplicados
+    let ingresos = 0
 
-    if (ingresosRes.error) {
-      return NextResponse.json({ error: ingresosRes.error.message }, { status: 500 })
+    if (month === 'mar') {
+      // Para marzo: SELECT COUNT(DISTINCT estudiante_id) AS ingresos_mes FROM estudiantes_detalles WHERE fecha_matricula >= '2025-03-01'::timestamp AND fecha_matricula < '2025-04-01'::timestamp
+      const { data: ingresosData, error: ingresosDataError } = await supabase
+        .from('estudiantes_detalles')
+        .select('estudiante_id')
+        .gte('fecha_matricula', from)
+        .lt('fecha_matricula', to)
+
+      if (ingresosDataError) {
+        return NextResponse.json({ error: ingresosDataError.message }, { status: 500 })
+      }
+
+      // Contar estudiantes únicos para marzo
+      const estudiantesIngresosUnicos = new Set(ingresosData?.map(r => r.estudiante_id) || [])
+      ingresos = estudiantesIngresosUnicos.size
+
+    } else {
+      // Para otros meses: Implementa la consulta CTE para excluir estudiantes duplicados
+      // Primero obtenemos todos los registros para identificar duplicados
+      const { data: allRecords, error: allRecordsError } = await supabase
+        .from('estudiantes_detalles')
+        .select('estudiante_id')
+
+      if (allRecordsError) {
+        return NextResponse.json({ error: allRecordsError.message }, { status: 500 })
+      }
+
+      // Identificar estudiantes con registros duplicados
+      const studentCounts = new Map<number, number>()
+      allRecords?.forEach(record => {
+        const count = studentCounts.get(record.estudiante_id) || 0
+        studentCounts.set(record.estudiante_id, count + 1)
+      })
+      
+      const duplicatedStudentIds = new Set<number>()
+      studentCounts.forEach((count, studentId) => {
+        if (count > 1) {
+          duplicatedStudentIds.add(studentId)
+        }
+      })
+
+      // Obtener ingresos del mes excluyendo duplicados
+      const { data: ingresosData, error: ingresosDataError } = await supabase
+        .from('estudiantes_detalles')
+        .select('estudiante_id')
+        .gte('fecha_matricula', from)
+        .lt('fecha_matricula', to)
+
+      if (ingresosDataError) {
+        return NextResponse.json({ error: ingresosDataError.message }, { status: 500 })
+      }
+
+      // Contar estudiantes únicos excluyendo duplicados
+      const estudiantesIngresosUnicos = new Set()
+      ingresosData?.forEach(record => {
+        if (!duplicatedStudentIds.has(record.estudiante_id)) {
+          estudiantesIngresosUnicos.add(record.estudiante_id)
+        }
+      })
+      ingresos = estudiantesIngresosUnicos.size
     }
 
-    // Count retiros: SELECT COUNT(*) AS retirados_marzo FROM estudiantes_detalles WHERE fecha_retiro BETWEEN '2025-03-01' AND '2025-03-31' AND motivo_retiro <> 'Cambio de curso'
-    const retirosRes = await supabase
+    // Count retiros: SELECT COUNT(DISTINCT estudiante_id) AS retirados_mes FROM estudiantes_detalles WHERE fecha_retiro >= '2025-03-01'::timestamp AND fecha_retiro < '2025-04-01'::timestamp AND motivo_retiro IS NOT NULL AND NOT (lower(motivo_retiro) = lower('Cambio de curso') OR lower(motivo_retiro) LIKE '%' || lower('Cambio de curso') || '%')
+    const { data: retirosData, error: retirosDataError } = await supabase
       .from('estudiantes_detalles')
-      .select('id', { count: 'exact', head: false })
+      .select('estudiante_id, motivo_retiro')
       .gte('fecha_retiro', from)
-      .lte('fecha_retiro', to)
+      .lt('fecha_retiro', to)
       .not('fecha_retiro', 'is', null)
-      .neq('motivo_retiro', 'Cambio de curso')
+      .not('motivo_retiro', 'is', null)
 
-    if (retirosRes.error) {
-      return NextResponse.json({ error: retirosRes.error.message }, { status: 500 })
+    if (retirosDataError) {
+      return NextResponse.json({ error: retirosDataError.message }, { status: 500 })
     }
 
-    const ingresos = ingresosRes.count ?? 0
-    const retiros = retirosRes.count ?? 0
+
+
+    // Filtrar retiros excluyendo "Cambio de curso" (case-insensitive y con LIKE)
+    const retirosUnicos = new Set()
+    retirosData?.forEach(record => {
+      const motivo = record.motivo_retiro?.toLowerCase() || ''
+      const esCambioCurso = motivo === 'cambio de curso' || motivo.includes('cambio de curso')
+      if (!esCambioCurso) {
+        retirosUnicos.add(record.estudiante_id)
+      }
+    })
+    const retiros = retirosUnicos.size
 
     return NextResponse.json({ ingresos, retiros })
   } catch (err: any) {
