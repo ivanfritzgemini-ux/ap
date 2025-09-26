@@ -18,7 +18,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Printer } from "lucide-react";
 import { EstudiantesPerfectos } from './estudiantes-perfectos';
-import { calcularDiasHabiles } from '@/lib/utils';
 
 // Lista de meses escolares (marzo a diciembre)
 const mesesEscolares = [
@@ -236,13 +235,11 @@ export function AsistenciaPerfectaCard() {
               {estadisticas.porcentajePerfectos && ` (${estadisticas.porcentajePerfectos}%)`}
             </span>
           )}
-          <span className="block mt-1 text-xs text-muted-foreground">
-            Días hábiles en el mes: {
-              Number(selectedMes) === 3
-                ? calcularDiasHabiles(3, Number(selectedAño), 5)
-                : calcularDiasHabiles(Number(selectedMes), Number(selectedAño))
-            }
-          </span>
+          {estadisticas.totalDiasHabiles && (
+            <span className="block mt-1 text-xs text-muted-foreground">
+              Días hábiles en el mes: {estadisticas.totalDiasHabiles}
+            </span>
+          )}
           {estadisticas.message && (
             <span className="block mt-1 text-xs text-amber-600">
               {estadisticas.message}

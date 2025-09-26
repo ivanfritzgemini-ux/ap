@@ -19,18 +19,17 @@ export async function GET(request: Request) {
     const ultimoDia = new Date(parseInt(año), parseInt(mes), 0).toISOString().split('T')[0]
     
     // 1. Obtener todos los días hábiles del mes (lunes a viernes)
-    // Si es marzo, el inicio es el 5; si no, el 1
-    const mesNum = parseInt(mes);
-    const añoNum = parseInt(año);
-    const diaInicio = mesNum === 3 ? 5 : 1;
-    const diasEnMes = new Date(añoNum, mesNum, 0).getDate();
-    const diasHabiles: string[] = [];
-    for (let dia = diaInicio; dia <= diasEnMes; dia++) {
-      const fecha = new Date(añoNum, mesNum - 1, dia);
-      const diaSemana = fecha.getDay(); // 0 = domingo, 6 = sábado
+    const diasHabiles = []
+    const diasEnMes = new Date(parseInt(año), parseInt(mes), 0).getDate()
+    
+    for (let dia = 1; dia <= diasEnMes; dia++) {
+      const fecha = new Date(parseInt(año), parseInt(mes) - 1, dia)
+      const diaSemana = fecha.getDay() // 0 = domingo, 6 = sábado
+      
+      // Solo incluir días de lunes a viernes
       if (diaSemana > 0 && diaSemana < 6) {
-        const fechaStr = fecha.toISOString().split('T')[0];
-        diasHabiles.push(fechaStr);
+        const fechaStr = fecha.toISOString().split('T')[0]
+        diasHabiles.push(fechaStr)
       }
     }
 
@@ -105,24 +104,20 @@ export async function GET(request: Request) {
     // 4. Calcular total de estudiantes que tienen registros en el mes
     const totalEstudiantesEnMes = Object.keys(estadisticasPorEstudiante).length
 
-    // 5. Identificar estudiantes con 100% de asistencia REAL:
-    // - Debe tener un registro para CADA día hábil del mes
-    // - Todos esos registros deben ser presente
-    const estudiantesConPerfectaAsistencia: any[] = [];
+    // 5. Identificar estudiantes con 100% de asistencia
+    const estudiantesConPerfectaAsistencia: any[] = []
+    
     for (const [estudianteId, stats] of Object.entries(estadisticasPorEstudiante)) {
-      // Solo considerar si tiene registro para TODOS los días hábiles y todos son presente
-      const fechasRegistradas = new Set(stats.fechas_registradas);
-      const tieneTodosLosDias = diasHabiles.every(dia => fechasRegistradas.has(dia));
-      if (
-        tieneTodosLosDias &&
-        stats.dias_presente === diasHabiles.length &&
-        stats.total_dias_registrados === diasHabiles.length
-      ) {
+      const porcentajeAsistencia = stats.total_dias_registrados > 0 
+        ? (stats.dias_presente / stats.total_dias_registrados) * 100 
+        : 0
+      
+      if (porcentajeAsistencia === 100) {
         estudiantesConPerfectaAsistencia.push({
           estudiante_id: estudianteId,
           ...stats,
           porcentaje_asistencia: 100
-        });
+        })
       }
     }
 

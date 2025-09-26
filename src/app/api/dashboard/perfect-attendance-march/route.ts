@@ -35,32 +35,21 @@ export async function GET() {
       }
     }
 
-    // 1. Obtener total de estudiantes matriculados en marzo usando consulta SQL exacta
-    const { count: totalEstudiantesMatriculados, error: matriculaError } = await supabase
-      .from('estudiantes_detalles')
-      .select('*', { count: 'exact', head: true })
-      .gte('fecha_matricula', '2025-03-01')
-      .lt('fecha_matricula', '2025-04-01')
-
-    if (matriculaError) {
-      console.error('Error al obtener total matriculados:', matriculaError)
-      return NextResponse.json({ 
-        error: matriculaError.message,
-        students: [],
-        isSimulated: false 
-      }, { status: 500 })
-    }
-
-    // 2. Obtener estudiantes con 100% de asistencia usando consulta SQL
-    // Primero, obtener todos los registros de asistencia para el análisis
-    const { data: asistenciaMarzo, error: asistenciaError } = await supabase
+    // Obtener registros de asistencia de marzo 2025
+    const { data: asistenciaMarzData, error: asistenciaError } = await supabase
       .from('asistencia')
-      .select('estudiante_id, presente')
+      .select(`
+        estudiante_id,
+        fecha,
+        presente,
+        justificado
+      `)
       .gte('fecha', '2025-03-01')
-      .lt('fecha', '2025-04-01')
+      .lte('fecha', '2025-03-31')
+      .order('estudiante_id')
+      .order('fecha')
 
     if (asistenciaError) {
-      console.error('Error al obtener asistencia:', asistenciaError)
       return NextResponse.json({ 
         error: asistenciaError.message,
         students: [],
@@ -68,11 +57,10 @@ export async function GET() {
       }, { status: 500 })
     }
 
-    if (!asistenciaMarzo || asistenciaMarzo.length === 0) {
+    if (!asistenciaMarzData || asistenciaMarzData.length === 0) {
       return NextResponse.json({
         students: [],
         totalRecords: 0,
-        totalStudents: totalEstudiantesMatriculados || 0,
         totalDiasHabiles: diasHabiles.length,
         perfectAttendanceCount: 0,
         perfectAttendancePercentage: '0.0',
@@ -81,43 +69,51 @@ export async function GET() {
       })
     }
 
-    // Procesar datos para encontrar estudiantes con 100% de asistencia
-    // Equivalente a la consulta SQL: GROUP BY estudiante_id HAVING COUNT(*) FILTER (WHERE presente = true) = COUNT(*)
-    const estadisticasPorEstudiante: Record<string, { total: number, presente: number }> = {}
+    // Agrupar por estudiante y calcular estadísticas
+    const estadisticasPorEstudiante: Record<string, any> = {}
 
-    asistenciaMarzo.forEach(registro => {
+    asistenciaMarzData.forEach(registro => {
       const { estudiante_id, presente } = registro
       
       if (!estadisticasPorEstudiante[estudiante_id]) {
         estadisticasPorEstudiante[estudiante_id] = {
-          total: 0,
-          presente: 0
+          total_dias: 0,
+          dias_presente: 0,
+          dias_ausente: 0
         }
       }
       
-      estadisticasPorEstudiante[estudiante_id].total++
+      const stats = estadisticasPorEstudiante[estudiante_id]
+      stats.total_dias++
+      
       if (presente) {
-        estadisticasPorEstudiante[estudiante_id].presente++
+        stats.dias_presente++
+      } else {
+        stats.dias_ausente++
       }
     })
 
-    // Filtrar estudiantes con 100% de asistencia (presente === total)
-    const estudiantesIds100Porciento: string[] = []
+    // Identificar estudiantes con 100% de asistencia
+    const estudiantesConPerfectaAsistencia: any[] = []
     
     for (const [estudianteId, stats] of Object.entries(estadisticasPorEstudiante)) {
-      if (stats.presente === stats.total && stats.total > 0) {
-        estudiantesIds100Porciento.push(estudianteId)
+      const porcentajeAsistencia = (stats.dias_presente / stats.total_dias) * 100
+      
+      if (porcentajeAsistencia === 100) {
+        estudiantesConPerfectaAsistencia.push({
+          estudiante_id: estudianteId,
+          ...stats,
+          porcentaje_asistencia: 100
+        })
       }
     }
 
-    const cantidadEstudiantes100Porciento = estudiantesIds100Porciento.length
-
     // Si no hay estudiantes con 100%, devolver resultado vacío
-    if (cantidadEstudiantes100Porciento === 0) {
+    if (estudiantesConPerfectaAsistencia.length === 0) {
       return NextResponse.json({
         students: [],
-        totalRecords: asistenciaMarzo.length,
-        totalStudents: totalEstudiantesMatriculados || 0,
+        totalRecords: asistenciaMarzData.length,
+        totalStudents: Object.keys(estadisticasPorEstudiante).length,
         totalDiasHabiles: diasHabiles.length,
         perfectAttendanceCount: 0,
         perfectAttendancePercentage: '0.0',
@@ -126,14 +122,16 @@ export async function GET() {
       })
     }
 
-    // 3. Obtener información detallada de los estudiantes con 100% de asistencia
+    // Obtener información detallada de los estudiantes
+    const estudianteIds = estudiantesConPerfectaAsistencia.map(e => e.estudiante_id)
+    
+    // Buscar por estudiante_id (según la estructura que encontramos)
     const { data: estudiantesDetalles, error: estudiantesError } = await supabase
       .from('estudiantes_detalles')
       .select('id, estudiante_id, nro_registro, curso_id')
-      .in('estudiante_id', estudiantesIds100Porciento)
+      .in('estudiante_id', estudianteIds)
 
     if (estudiantesError) {
-      console.error('Error al obtener estudiantes detalles:', estudiantesError)
       return NextResponse.json({ 
         error: estudiantesError.message,
         students: [],
@@ -159,7 +157,7 @@ export async function GET() {
     const estudiantesCompletos = estudiantesDetalles?.map(detalle => {
       const usuario = usuariosData?.find(u => u.id === detalle.estudiante_id)
       const curso = cursosData?.find(c => c.id === detalle.curso_id)
-      const stats = estadisticasPorEstudiante[detalle.estudiante_id]
+      const stats = estudiantesConPerfectaAsistencia.find(e => e.estudiante_id === detalle.estudiante_id)
 
       return {
         id: detalle.id,
@@ -171,46 +169,26 @@ export async function GET() {
           : `${usuario?.apellidos || ''}${usuario?.nombres || ''}`.trim(),
         curso: curso?.nombre_curso || 'Sin curso',
         nivel: curso?.nivel || '',
-        diasRegistrados: stats?.total || 0,
-        diasPresente: stats?.presente || 0,
+        diasRegistrados: stats?.total_dias || 0,
+        diasPresente: stats?.dias_presente || 0,
         porcentajeAsistencia: 100
       }
     }) || []
 
-    // Ordenar por curso, luego por apellidos
-    estudiantesCompletos.sort((a, b) => {
-      // Primero ordenar por curso
-      const cursoComparacion = a.curso.localeCompare(b.curso, 'es', { sensitivity: 'base' })
-      if (cursoComparacion !== 0) return cursoComparacion
-      
-      // Luego ordenar por apellidos
-      const apellidosA = a.apellidos || a.nombreCompleto.split(',')[0]
-      const apellidosB = b.apellidos || b.nombreCompleto.split(',')[0]
-      return apellidosA.localeCompare(apellidosB, 'es', { sensitivity: 'base' })
-    })
-
     // Calcular estadísticas generales
-    const estudiantesConRegistros = Object.values(estadisticasPorEstudiante)
-    const promedioAsistencia = estudiantesConRegistros.length > 0 
-      ? estudiantesConRegistros
-          .map(stats => (stats.presente / stats.total) * 100)
-          .reduce((sum, porcentaje) => sum + porcentaje, 0) / estudiantesConRegistros.length
-      : 0
-
-    const totalMatriculados = totalEstudiantesMatriculados || 0
-    const porcentajePerfectos = totalMatriculados > 0 
-      ? ((cantidadEstudiantes100Porciento / totalMatriculados) * 100).toFixed(1)
-      : '0.0'
+    const totalEstudiantes = Object.keys(estadisticasPorEstudiante).length
+    const promedioAsistencia = Object.values(estadisticasPorEstudiante)
+      .map(stats => (stats.dias_presente / stats.total_dias) * 100)
+      .reduce((sum, porcentaje) => sum + porcentaje, 0) / totalEstudiantes
 
     return NextResponse.json({
       students: estudiantesCompletos,
-      perfectAttendanceCount: cantidadEstudiantes100Porciento,
-      totalStudents: totalMatriculados,
-      perfectAttendancePercentage: porcentajePerfectos,
+      perfectAttendanceCount: estudiantesConPerfectaAsistencia.length,
+      totalStudents: totalEstudiantes,
+      perfectAttendancePercentage: ((estudiantesConPerfectaAsistencia.length / totalEstudiantes) * 100).toFixed(1),
       averageAttendance: promedioAsistencia.toFixed(1),
-      totalRecords: asistenciaMarzo.length,
+      totalRecords: asistenciaMarzData.length,
       totalDiasHabiles: diasHabiles.length,
-      estudiantesConRegistros: estudiantesConRegistros.length,
       month: 'Marzo 2025',
       isSimulated: false
     })
