@@ -1219,7 +1219,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
                 <TableCell className="hidden md:table-cell px-2">{formatRut(student.rut)}</TableCell>
                 <TableCell className="font-medium px-2">
                   <div className="flex items-center gap-2 h-full py-2">
-                    <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
+                    <div className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</div>
                     {/* Badge de Traslado - para estudiantes activos con historial de traslado o retirados por traslado */}
                     {(student.tiene_traslado && !student.fecha_retiro) || 
                      (student.fecha_retiro && student.motivo_retiro && (
@@ -1293,7 +1293,7 @@ export function StudentManagementClient({ students: initialStudents }: StudentMa
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <div className="text-base flex items-center gap-2 py-1">
-                  <span className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</span>
+                  <div className={student.fecha_retiro ? 'line-through opacity-60' : ''}>{`${student.apellidos} ${student.nombres}`}</div>
                   {student.fecha_retiro ? <Badge variant="destructive">Retirado</Badge> : null}
                 </div>
                 <AlertDialog>

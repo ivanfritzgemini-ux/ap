@@ -1,11 +1,13 @@
-import { getCourseDetails, getStudentsByCourse, getCourseStatistics } from '@/lib/data';
+'use client';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Printer } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const formatDate = (dateString: string | null | undefined) => {
   if (!dateString) return '-';
@@ -38,18 +40,229 @@ const formatEnrollmentDate = (dateString: string | null | undefined) => {
   }
 };
 
-export default async function CourseDetailsPage({ params }: { params: { id: string } }) {
-  const { id } = await params;
+export default function CourseDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const [course, setCourse] = useState<any>(null);
+  const [students, setStudents] = useState<any[]>([]);
+  const [statistics, setStatistics] = useState<any>({ totalActivos: 0, totalRetirados: 0, totalFemeninos: 0, totalMasculinos: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  const [course, students, statistics] = await Promise.all([
-    getCourseDetails(id),
-    getStudentsByCourse(id),
-    getCourseStatistics(id)
-  ]);
+  useEffect(() => {
+    const fetchData = async () => {
+      const { id } = await params;
+      
+      try {
+        const [courseResponse, studentsResponse, statisticsResponse] = await Promise.all([
+          fetch(`/api/courses/${id}`),
+          fetch(`/api/courses/${id}/students`),
+          fetch(`/api/courses/${id}/statistics`)
+        ]);
+
+        if (!courseResponse.ok) {
+          if (courseResponse.status === 404) {
+            router.push('/dashboard/admin/courses');
+            return;
+          }
+          throw new Error('Failed to fetch course data');
+        }
+
+        const [courseData, studentsData, statisticsData] = await Promise.all([
+          courseResponse.json(),
+          studentsResponse.json(),
+          statisticsResponse.json()
+        ]);
+
+        setCourse(courseData.data);
+        setStudents(studentsData.data || []);
+        setStatistics(statisticsData.data || { totalActivos: 0, totalRetirados: 0, totalFemeninos: 0, totalMasculinos: 0 });
+      } catch (error) {
+        console.error('Error fetching course data:', error);
+        setError('Error al cargar los datos del curso');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [params, router]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">Cargando...</div>;
+  }
+
+  if (error) {
+    return <div className="flex items-center justify-center h-64 text-red-500">{error}</div>;
+  }
 
   if (!course) {
-    notFound();
+    return <div className="flex items-center justify-center h-64">Curso no encontrado</div>;
   }
+
+  // Función para generar la nómina de estudiantes con 30 filas
+  const generatePrintableList = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Crear un array de 30 elementos con estudiantes actuales + filas vacías
+    const printStudents = [...students];
+    while (printStudents.length < 30) {
+      printStudents.push({ 
+        id: `empty-${printStudents.length}`, 
+        registration_number: '', 
+        name: '', 
+        enrollment_date: null, 
+        withdrawal_date: null 
+      });
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Nómina de Alumnos por Curso 2025</title>
+          <meta charset="utf-8">
+          <style>
+            @page {
+              size: A4;
+              margin: 1.5cm;
+            }
+            
+            body {
+              font-family: Arial, sans-serif;
+              font-size: 11pt;
+              line-height: 1.2;
+              margin: 0;
+              padding: 0;
+              color: #000;
+            }
+            
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            
+            .header h1 {
+              font-size: 16pt;
+              font-weight: bold;
+              margin: 0 0 10px 0;
+              text-transform: uppercase;
+            }
+            
+            .course-info {
+              margin-bottom: 25px;
+            }
+            
+            .course-info div {
+              margin-bottom: 8px;
+            }
+            
+            .course-info strong {
+              font-weight: bold;
+            }
+            
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 10pt;
+            }
+            
+            th, td {
+              border: 1px solid #000;
+              padding: 6px 4px;
+              text-align: left;
+              vertical-align: top;
+            }
+            
+            th {
+              background-color: #f0f0f0;
+              font-weight: bold;
+              text-align: center;
+            }
+            
+            .col-num { width: 8%; text-align: center; }
+            .col-reg { width: 15%; text-align: center; }
+            .col-matricula { width: 18%; text-align: center; }
+            .col-retiro { width: 18%; text-align: center; }
+            .col-nombre { width: 41%; }
+            
+            .empty-row td {
+              height: 18px;
+              border-color: #666;
+            }
+            
+            .withdrawn {
+              text-decoration: line-through;
+              color: #666;
+            }
+            
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Nómina de Alumnos por Curso 2025</h1>
+          </div>
+          
+          <div class="course-info">
+            <div><strong>Curso:</strong> ${course.nombre_curso}</div>
+            <div><strong>Profesor Jefe:</strong> ${course.profesor_jefe || 'No asignado'}</div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th class="col-num">N°</th>
+                <th class="col-reg">N° Registro</th>
+                <th class="col-matricula">Fecha Matrícula</th>
+                <th class="col-retiro">Fecha Retiro</th>
+                <th class="col-nombre">Nombre del Alumno</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${printStudents.map((student, index) => {
+                const isWithdrawn = student.withdrawal_date;
+                const enrollmentDate = student.enrollment_date ? formatEnrollmentDate(student.enrollment_date) : '';
+                const withdrawalDate = student.withdrawal_date ? formatDate(student.withdrawal_date) : '';
+                
+                if (!student.name) {
+                  return `
+                    <tr class="empty-row">
+                      <td class="col-num">${index + 1}</td>
+                      <td class="col-reg"></td>
+                      <td class="col-matricula"></td>
+                      <td class="col-retiro"></td>
+                      <td class="col-nombre"></td>
+                    </tr>
+                  `;
+                }
+                
+                return `
+                  <tr${isWithdrawn ? ' class="withdrawn"' : ''}>
+                    <td class="col-num">${index + 1}</td>
+                    <td class="col-reg">${student.registration_number || ''}</td>
+                    <td class="col-matricula">${enrollmentDate}</td>
+                    <td class="col-retiro">${withdrawalDate}</td>
+                    <td class="col-nombre">${student.name}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  };
 
   return (
     <div className="space-y-6">
@@ -103,7 +316,18 @@ export default async function CourseDetailsPage({ params }: { params: { id: stri
 
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Alumnos</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Lista de Alumnos</CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={generatePrintableList}
+              className="gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Imprimir Nómina
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg">

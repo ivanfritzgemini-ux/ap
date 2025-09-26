@@ -1,5 +1,5 @@
 import type { User, Student } from './types';
-import { createServerClient } from '@/app/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 
 export async function fetchUsers(): Promise<User[]> {
   const supabase = await createServerClient();
