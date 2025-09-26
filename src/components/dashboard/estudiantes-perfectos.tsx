@@ -34,14 +34,8 @@ interface EstudiantesPerfectosProps {
 }
 
 export function EstudiantesPerfectos({ mes, año, estudiantes, isLoading = false }: EstudiantesPerfectosProps) {
-  // Ordenar estudiantes alfabéticamente por apellidos
-  const estudiantesOrdenados = [...estudiantes]
-    .sort((a, b) => {
-      // Si tenemos apellidos separados, usar esos; si no, usar la primera parte del nombreCompleto
-      const apellidosA = a.apellidos || a.nombreCompleto.split(',')[0];
-      const apellidosB = b.apellidos || b.nombreCompleto.split(',')[0];
-      return apellidosA.localeCompare(apellidosB, 'es', { sensitivity: 'base' });
-    });
+  // Los estudiantes ya vienen ordenados por curso y apellidos desde el backend
+  const estudiantesOrdenados = estudiantes;
 
   if (isLoading) {
     return (
@@ -94,7 +88,7 @@ export function EstudiantesPerfectos({ mes, año, estudiantes, isLoading = false
           </div>
         </div>
         <Badge variant="secondary" className="text-xs">
-          Ordenado por apellidos
+          Ordenado por curso y apellidos
         </Badge>
       </div>
 

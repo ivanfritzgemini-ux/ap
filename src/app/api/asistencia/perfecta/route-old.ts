@@ -19,22 +19,33 @@ export async function GET(request: Request) {
     const ultimoDia = new Date(parseInt(año), parseInt(mes), 0).toISOString().split('T')[0]
     
     // 1. Obtener todos los días hábiles del mes (lunes a viernes)
-    // Si es marzo, el inicio es el 5; si no, el 1
-    const mesNum = parseInt(mes);
-    const añoNum = parseInt(año);
-    const diaInicio = mesNum === 3 ? 5 : 1;
-    const diasEnMes = new Date(añoNum, mesNum, 0).getDate();
-    const diasHabiles: string[] = [];
-    for (let dia = diaInicio; dia <= diasEnMes; dia++) {
-      const fecha = new Date(añoNum, mesNum - 1, dia);
-      const diaSemana = fecha.getDay(); // 0 = domingo, 6 = sábado
+    const diasHabiles = []
+    const diasEnMes = new Date(parseInt(año), parseInt(mes), 0).getDate()
+    
+    for (let dia = 1; dia <= diasEnMes; dia++) {
+      const fecha = new Date(parseInt(año), parseInt(mes) - 1, dia)
+      const diaSemana = fecha.getDay() // 0 = domingo, 6 = sábado
+      
+      // Solo incluir días de lunes a viernes
       if (diaSemana > 0 && diaSemana < 6) {
-        const fechaStr = fecha.toISOString().split('T')[0];
-        diasHabiles.push(fechaStr);
+        const fechaStr = fecha.toISOString().split('T')[0]
+        diasHabiles.push(fechaStr)
       }
     }
 
-    // 2. Obtener todos los registros de asistencia para el mes seleccionado
+    // 2. Obtener total de estudiantes matriculados usando consulta SQL optimizada
+    const { count: totalEstudiantesMatriculados, error: estudiantesDetallesError } = await supabase
+      .from('estudiantes_detalles')
+      .select('*', { count: 'exact', head: true })
+      .gte('fecha_matricula', primerDia)
+      .lt('fecha_matricula', `${parseInt(año)}-${(parseInt(mes) + 1).toString().padStart(2, '0')}-01`)
+
+    if (estudiantesDetallesError) {
+      console.error('Error al obtener estudiantes detalles:', estudiantesDetallesError)
+      return NextResponse.json({ error: estudiantesDetallesError.message }, { status: 500 })
+    }
+
+    // 3. Obtener todos los registros de asistencia para el mes seleccionado
     const { data: asistenciaMes, error: asistenciaError } = await supabase
       .from('asistencia')
       .select(`
@@ -58,39 +69,46 @@ export async function GET(request: Request) {
         mes: parseInt(mes),
         año: parseInt(año),
         total_dias_habiles: diasHabiles.length,
+        total_estudiantes: totalEstudiantesMatriculados,
         estudiantes_perfectos: [],
-        total: 0,
+        total_perfectos: 0,
+        porcentaje_perfectos: '0.0',
         message: 'No hay registros de asistencia para este mes'
       })
     }
 
-    // 3. Agrupar por estudiante y calcular estadísticas
+    // 4. Inicializar estadísticas para TODOS los estudiantes matriculados
     const estadisticasPorEstudiante: Record<string, any> = {}
+    
+    // Inicializar con todos los estudiantes matriculados
+    todosLosEstudiantesDetalles?.forEach(detalle => {
+      estadisticasPorEstudiante[detalle.estudiante_id] = {
+        fechas_registradas: new Set(),
+        dias_presente: 0,
+        dias_ausente: 0,
+        ausentes_justificadas: 0,
+        ausentes_injustificadas: 0
+      }
+    })
 
+    // 5. Procesar registros de asistencia sobre la base de estudiantes matriculados
     asistenciaMes.forEach(registro => {
       const { estudiante_id, fecha, presente, justificado } = registro
       
-      if (!estadisticasPorEstudiante[estudiante_id]) {
-        estadisticasPorEstudiante[estudiante_id] = {
-          fechas_registradas: new Set(),
-          dias_presente: 0,
-          dias_ausente: 0,
-          ausentes_justificadas: 0,
-          ausentes_injustificadas: 0
-        }
-      }
-      
-      const stats = estadisticasPorEstudiante[estudiante_id]
-      stats.fechas_registradas.add(fecha)
-      
-      if (presente) {
-        stats.dias_presente++
-      } else {
-        stats.dias_ausente++
-        if (justificado) {
-          stats.ausentes_justificadas++
+      // Solo procesar si el estudiante está en la lista de matriculados
+      if (estadisticasPorEstudiante[estudiante_id]) {
+        const stats = estadisticasPorEstudiante[estudiante_id]
+        stats.fechas_registradas.add(fecha)
+        
+        if (presente) {
+          stats.dias_presente++
         } else {
-          stats.ausentes_injustificadas++
+          stats.dias_ausente++
+          if (justificado) {
+            stats.ausentes_justificadas++
+          } else {
+            stats.ausentes_injustificadas++
+          }
         }
       }
     })
@@ -102,46 +120,37 @@ export async function GET(request: Request) {
       stats.total_dias_registrados = stats.fechas_registradas.length
     })
 
-    // 4. Calcular total de estudiantes que tienen registros en el mes
-    const totalEstudiantesEnMes = Object.keys(estadisticasPorEstudiante).length
-
-    // 5. Identificar estudiantes con 100% de asistencia REAL:
-    // - Debe tener un registro para CADA día hábil del mes
-    // - Todos esos registros deben ser presente
-    const estudiantesConPerfectaAsistencia: any[] = [];
+    // 6. Identificar estudiantes con 100% de asistencia
+    const estudiantesConPerfectaAsistencia: any[] = []
+    
     for (const [estudianteId, stats] of Object.entries(estadisticasPorEstudiante)) {
-      // Solo considerar si tiene registro para TODOS los días hábiles y todos son presente
-      const fechasRegistradas = new Set(stats.fechas_registradas);
-      const tieneTodosLosDias = diasHabiles.every(dia => fechasRegistradas.has(dia));
-      if (
-        tieneTodosLosDias &&
-        stats.dias_presente === diasHabiles.length &&
-        stats.total_dias_registrados === diasHabiles.length
-      ) {
+      // Un estudiante tiene 100% de asistencia solo si:
+      // 1. Tiene registros de asistencia (total_dias_registrados > 0)
+      // 2. Todos sus registros son de presente (dias_presente === total_dias_registrados)
+      const tieneRegistros = stats.total_dias_registrados > 0
+      const porcentajeAsistencia = tieneRegistros 
+        ? (stats.dias_presente / stats.total_dias_registrados) * 100 
+        : 0
+      
+      if (tieneRegistros && porcentajeAsistencia === 100) {
         estudiantesConPerfectaAsistencia.push({
           estudiante_id: estudianteId,
           ...stats,
           porcentaje_asistencia: 100
-        });
+        })
       }
     }
 
-    // 6. Si hay estudiantes con 100%, obtener sus datos personales
+    // 7. Si hay estudiantes con 100%, obtener sus datos personales
     const estudiantesPerfectos: any[] = []
     
     if (estudiantesConPerfectaAsistencia.length > 0) {
       const estudianteIds = estudiantesConPerfectaAsistencia.map(e => e.estudiante_id)
       
-      // Buscar por estudiante_id
-      const { data: estudiantesDetalles, error: estudiantesError } = await supabase
-        .from('estudiantes_detalles')
-        .select('id, estudiante_id, nro_registro, curso_id')
-        .in('estudiante_id', estudianteIds)
-
-      if (estudiantesError) {
-        console.error('Error al obtener estudiantes detalles:', estudiantesError)
-        return NextResponse.json({ error: estudiantesError.message }, { status: 500 })
-      }
+      // Filtrar de la lista de estudiantes ya obtenida
+      const estudiantesDetalles = todosLosEstudiantesDetalles?.filter(detalle => 
+        estudianteIds.includes(detalle.estudiante_id)
+      )
 
       // Obtener información de usuarios
       const usuarioIds = estudiantesDetalles?.map(ed => ed.estudiante_id) || []
@@ -200,15 +209,15 @@ export async function GET(request: Request) {
     }
 
     // Calcular porcentaje de estudiantes con asistencia perfecta
-    const porcentajePerfectos = totalEstudiantesEnMes > 0 
-      ? ((estudiantesPerfectos.length / totalEstudiantesEnMes) * 100).toFixed(1)
+    const porcentajePerfectos = totalEstudiantesMatriculados > 0 
+      ? ((estudiantesPerfectos.length / totalEstudiantesMatriculados) * 100).toFixed(1)
       : '0.0'
 
     return NextResponse.json({
       mes: parseInt(mes),
       año: parseInt(año),
       total_dias_habiles: diasHabiles.length,
-      total_estudiantes: totalEstudiantesEnMes,
+      total_estudiantes: totalEstudiantesMatriculados,
       estudiantes_perfectos: estudiantesPerfectos,
       total_perfectos: estudiantesPerfectos.length,
       porcentaje_perfectos: porcentajePerfectos

@@ -178,13 +178,6 @@ export function ResumenAsistenciaCard() {
                         }`}>
                           {curso.asistenciaPromedio}%
                         </div>
-                        <div className="text-xs">
-                          {curso.asistenciaPromedio >= 95 ? '🏆' :
-                           curso.asistenciaPromedio >= 90 ? '✅' :
-                           curso.asistenciaPromedio >= 85 ? '⚡' :
-                           curso.asistenciaPromedio >= 80 ? '⚠️' :
-                           '🚨'}
-                        </div>
                       </div>
                     </div>
                   ))

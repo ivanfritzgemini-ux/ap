@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Printer } from "lucide-react";
 import { EstudiantesPerfectos } from './estudiantes-perfectos';
+import { calcularDiasHabiles } from '@/lib/utils';
 
 // Lista de meses escolares (marzo a diciembre)
 const mesesEscolares = [
@@ -100,6 +101,7 @@ export function AsistenciaPerfectaCard() {
         setEstudiantes(estudiantesFormateados);
         setEstadisticas({
           totalEstudiantes: data.totalStudents,
+          totalDiasHabiles: data.totalDiasHabiles,
           estudiantesConPerfectaAsistencia: data.perfectAttendanceCount,
           porcentajePerfectos: data.perfectAttendancePercentage,
           promedioAsistencia: data.averageAttendance
@@ -120,7 +122,9 @@ export function AsistenciaPerfectaCard() {
         setEstudiantes(data.estudiantes_perfectos || []);
         setEstadisticas({
           totalDiasHabiles: data.total_dias_habiles,
-          totalEstudiantes: data.total || 0,
+          totalEstudiantes: data.total_estudiantes || 0,
+          estudiantesConPerfectaAsistencia: data.total_perfectos || 0,
+          porcentajePerfectos: data.porcentaje_perfectos || '0.0',
           message: data.message
         });
       }
@@ -232,11 +236,13 @@ export function AsistenciaPerfectaCard() {
               {estadisticas.porcentajePerfectos && ` (${estadisticas.porcentajePerfectos}%)`}
             </span>
           )}
-          {estadisticas.totalDiasHabiles && (
-            <span className="block mt-1 text-xs text-muted-foreground">
-              Días hábiles en el mes: {estadisticas.totalDiasHabiles}
-            </span>
-          )}
+          <span className="block mt-1 text-xs text-muted-foreground">
+            Días hábiles en el mes: {
+              Number(selectedMes) === 3
+                ? calcularDiasHabiles(3, Number(selectedAño), 5)
+                : calcularDiasHabiles(Number(selectedMes), Number(selectedAño))
+            }
+          </span>
           {estadisticas.message && (
             <span className="block mt-1 text-xs text-amber-600">
               {estadisticas.message}
