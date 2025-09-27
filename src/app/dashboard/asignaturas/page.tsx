@@ -95,14 +95,40 @@ export default function AsignaturasPage() {
       setAsignaturas(asignaturasData.data || [])
       setCursos(cursosData.data || [])
       
-      // Transformar profesores al formato esperado
-      const profesoresFormatted = profesoresData.data?.map((p: any) => ({
-        id: p.teacher_details?.id || p.id,
-        nombre: p.name,
-        email: p.email,
-        especialidad: p.teacher_details?.especialidad
-      })) || []
-      
+      // Transformar profesores al formato esperado y ordenar por apellido, luego nombre
+      const profesoresFormatted = (profesoresData.data?.map((p: any) => {
+        // Separar apellidos y nombres suponiendo formato: Nombres ApellidoPaterno ApellidoMaterno
+        const partes = p.name.trim().split(' ');
+        let apellidos = '';
+        let nombres = '';
+        if (partes.length >= 3) {
+          apellidos = partes.slice(-2).join(' ');
+          nombres = partes.slice(0, -2).join(' ');
+        } else if (partes.length === 2) {
+          apellidos = partes[1];
+          nombres = partes[0];
+        } else {
+          apellidos = partes[0];
+          nombres = '';
+        }
+        return {
+          id: p.teacher_details?.id || p.id,
+          nombre: p.name,
+          apellidos,
+          nombres,
+          email: p.email,
+          especialidad: p.teacher_details?.especialidad
+        };
+      }) || []).sort((a, b) => {
+        // Ordenar por apellidos, luego nombres
+        const apA = a.apellidos.toLowerCase();
+        const apB = b.apellidos.toLowerCase();
+        if (apA < apB) return -1;
+        if (apA > apB) return 1;
+        const nomA = a.nombres.toLowerCase();
+        const nomB = b.nombres.toLowerCase();
+        return nomA.localeCompare(nomB);
+      });
       setProfesores(profesoresFormatted)
     } catch (error) {
       toast({
@@ -300,7 +326,7 @@ export default function AsignaturasPage() {
                     <SelectContent>
                       {profesores.map((profesor) => (
                         <SelectItem key={profesor.id} value={profesor.id}>
-                          {profesor.nombre}
+                          {profesor.apellidos}, {profesor.nombres}
                           {profesor.especialidad && (
                             <span className="text-muted-foreground ml-2">
                               - {profesor.especialidad}

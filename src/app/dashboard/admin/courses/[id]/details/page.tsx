@@ -127,6 +127,11 @@ export default function CourseDetailsPage({ params }: { params: Promise<{ id: st
               size: A4;
               margin: 1.5cm;
             }
+            @media print {
+              body {
+                zoom: 0.95;
+              }
+            }
             
             body {
               font-family: Arial, sans-serif;

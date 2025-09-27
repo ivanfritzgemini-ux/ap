@@ -41,8 +41,6 @@ interface DatosAsistencia {
 }
 
 const meses = [
-  { valor: 1, nombre: 'Enero' },
-  { valor: 2, nombre: 'Febrero' },
   { valor: 3, nombre: 'Marzo' },
   { valor: 4, nombre: 'Abril' },
   { valor: 5, nombre: 'Mayo' },
@@ -56,7 +54,11 @@ const meses = [
 ]
 
 export function PerfectAttendanceByCourseCard() {
-  const [selectedMes, setSelectedMes] = useState<string>(new Date().getMonth().toString())
+  // El mes actual (1-12)
+  const mesActual = new Date().getMonth() + 1;
+  // Si el mes actual es enero o febrero, por defecto mostrar marzo
+  const mesDefault = mesActual < 3 ? 3 : mesActual;
+  const [selectedMes, setSelectedMes] = useState<string>(mesDefault.toString())
   const [selectedAño, setSelectedAño] = useState<string>(new Date().getFullYear().toString())
   const [datos, setDatos] = useState<DatosAsistencia | null>(null)
   const [loading, setLoading] = useState(false)
