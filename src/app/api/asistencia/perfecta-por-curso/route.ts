@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { getFeriadosDelAño } from '@/lib/feriados'
-import { validarDiaBloqueado } from '@/lib/dias-bloqueados'
 
 // GET - Obtener estudiantes con 100% de asistencia agrupados por curso en un mes
 export async function GET(request: Request) {
@@ -15,65 +13,29 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServiceRoleClient()
-    const mesInt = parseInt(mes)
-    const añoInt = parseInt(año)
 
-    // Obtener periodos académicos
-    const { data: periodosAcademicos, error: periodosError } = await supabase
-      .from('periodos_academicos')
-      .select('nombre, fecha_inicio, fecha_fin')
-      .gte('fecha_inicio', `${añoInt}-01-01`)
-      .lte('fecha_inicio', `${añoInt}-12-31`)
-
-    if (periodosError) {
-      console.error('Error al obtener periodos académicos:', periodosError)
-      // Fallback a periodos hardcodeados si no hay datos en la base
+    // Obtener el primer y último día del mes
+    // Solo marzo inicia el 5, los demás meses inician el 1
+    let diaInicioMes = 1;
+    if (parseInt(mes) === 3) {
+      diaInicioMes = 5;
     }
+    const primerDia = `${año}-${mes.padStart(2, '0')}-${diaInicioMes.toString().padStart(2, '0')}`;
+    const ultimoDia = new Date(parseInt(año), parseInt(mes), 0).toISOString().split('T')[0];
 
-    const estaEnPeriodoAcademico = (fechaString: string) => {
-      if (!periodosAcademicos || periodosAcademicos.length === 0) {
-        const periodosHardcoded = {
-          primerSemestre: { inicio: `${añoInt}-03-05`, fin: `${añoInt}-07-12` },
-          segundoSemestre: { inicio: `${añoInt}-07-29`, fin: `${añoInt}-12-20` }
-        }
-        const { primerSemestre, segundoSemestre } = periodosHardcoded
-        return (fechaString >= primerSemestre.inicio && fechaString <= primerSemestre.fin) ||
-               (fechaString >= segundoSemestre.inicio && fechaString <= segundoSemestre.fin)
+    // Calcular días hábiles del mes
+    const diasHabiles: string[] = [];
+    const diasEnMes = new Date(parseInt(año), parseInt(mes), 0).getDate();
+
+    for (let dia = diaInicioMes; dia <= diasEnMes; dia++) {
+      const fecha = new Date(parseInt(año), parseInt(mes) - 1, dia);
+      const diaSemana = fecha.getDay(); // 0 = domingo, 6 = sábado
+
+      // Solo incluir días de lunes a viernes
+      if (diaSemana > 0 && diaSemana < 6) {
+        diasHabiles.push(fecha.toISOString().split('T')[0]);
       }
-      return periodosAcademicos.some(periodo => 
-        fechaString >= periodo.fecha_inicio && fechaString <= periodo.fecha_fin
-      )
     }
-
-    // Calcular días hábiles del mes de forma precisa
-    const diasHabiles: string[] = []
-    const diasEnMes = new Date(añoInt, mesInt, 0).getDate()
-    const feriadosDelAño = getFeriadosDelAño(año)
-
-    for (let dia = 1; dia <= diasEnMes; dia++) {
-      const fecha = new Date(Date.UTC(añoInt, mesInt - 1, dia))
-      const fechaString = fecha.toISOString().split('T')[0]
-      const diaSemana = fecha.getUTCDay()
-
-      const esFinDeSemana = diaSemana === 0 || diaSemana === 6
-      const esFeriadoOficial = feriadosDelAño[fechaString] !== undefined
-      const dentroDelPeriodo = estaEnPeriodoAcademico(fechaString)
-      
-      if (esFinDeSemana || esFeriadoOficial || !dentroDelPeriodo) {
-        continue
-      }
-
-      // Validar si el día está bloqueado para algún curso (bloqueo general)
-      const validacionBloqueo = await validarDiaBloqueado(fechaString)
-      if (validacionBloqueo.bloqueado) {
-        continue
-      }
-
-      diasHabiles.push(fechaString)
-    }
-    
-    const primerDia = `${año}-${mes.padStart(2, '0')}-01`;
-    const ultimoDia = new Date(añoInt, mesInt, 0).toISOString().split('T')[0];
 
     // Obtener todos los cursos
     const { data: cursosData, error: cursosError } = await supabase
@@ -88,8 +50,8 @@ export async function GET(request: Request) {
 
     if (!cursosData || cursosData.length === 0) {
       return NextResponse.json({
-        mes: mesInt,
-        año: añoInt,
+        mes: parseInt(mes),
+        año: parseInt(año),
         total_dias_habiles: diasHabiles.length,
         cursos: [],
         total_estudiantes_perfectos: 0
@@ -159,16 +121,23 @@ export async function GET(request: Request) {
           : new Date(ultimoDia)
 
         // Calcular días hábiles para este estudiante (desde su matrícula hasta su retiro o fin del mes)
-        const diasHabilesEstudiante = diasHabiles.filter(dh => {
-            const fechaDH = new Date(dh);
-            return fechaDH >= fechaInicioEstudiante && fechaDH <= fechaFinEstudiante;
-        });
+        const diasHabilesEstudiante: string[] = []
+        const fechaActual = new Date(fechaInicioEstudiante)
+
+        while (fechaActual <= fechaFinEstudiante) {
+          const diaSemana = fechaActual.getDay()
+          // Solo días hábiles (lunes a viernes)
+          if (diaSemana > 0 && diaSemana < 6) {
+            diasHabilesEstudiante.push(fechaActual.toISOString().split('T')[0])
+          }
+          fechaActual.setDate(fechaActual.getDate() + 1)
+        }
 
         if (diasHabilesEstudiante.length === 0) continue
 
         // Contar días asistidos por este estudiante
         const asistenciaEstudiante = asistenciaData.filter(
-          (a: any) => a.estudiante_id === estudiante.estudiante_id && a.presente && diasHabilesEstudiante.includes(a.fecha)
+          (a: any) => a.estudiante_id === estudiante.estudiante_id && a.presente
         )
 
         const diasAsistidos = asistenciaEstudiante.length
@@ -213,8 +182,8 @@ export async function GET(request: Request) {
     const totalEstudiantesPerfectos = resultadosPorCurso.reduce((sum, curso) => sum + curso.total_estudiantes, 0)
 
     return NextResponse.json({
-      mes: mesInt,
-      año: añoInt,
+      mes: parseInt(mes),
+      año: parseInt(año),
       total_dias_habiles: diasHabiles.length,
       cursos: resultadosPorCurso,
       total_estudiantes_perfectos: totalEstudiantesPerfectos,
