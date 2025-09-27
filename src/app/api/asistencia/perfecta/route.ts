@@ -7,52 +7,51 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const mes = searchParams.get('mes')
     const año = searchParams.get('año')
-    
+
     if (!mes || !año) {
       return NextResponse.json({ error: 'Se requieren los parámetros mes y año' }, { status: 400 })
     }
 
     const supabase = createServiceRoleClient()
-    
+
     // Obtener el primer y último día del mes
-    const primerDia = `${año}-${mes.padStart(2, '0')}-01`
+    // Para marzo, el período de asistencia comienza el 5 de marzo
+    const diaInicioMes = (parseInt(mes) === 3) ? 5 : 1
+    const primerDia = `${año}-${mes.padStart(2, '0')}-${diaInicioMes.toString().padStart(2, '0')}`
     const ultimoDia = new Date(parseInt(año), parseInt(mes), 0).toISOString().split('T')[0]
-    
-    // 1. Obtener todos los días hábiles del mes (lunes a viernes)
-    const diasHabiles = []
+
+    // Calcular días hábiles del mes
+    const diasHabiles: string[] = []
     const diasEnMes = new Date(parseInt(año), parseInt(mes), 0).getDate()
-    
-    for (let dia = 1; dia <= diasEnMes; dia++) {
+
+    for (let dia = diaInicioMes; dia <= diasEnMes; dia++) {
       const fecha = new Date(parseInt(año), parseInt(mes) - 1, dia)
       const diaSemana = fecha.getDay() // 0 = domingo, 6 = sábado
-      
+
       // Solo incluir días de lunes a viernes
       if (diaSemana > 0 && diaSemana < 6) {
-        const fechaStr = fecha.toISOString().split('T')[0]
-        diasHabiles.push(fechaStr)
+        diasHabiles.push(fecha.toISOString().split('T')[0])
       }
     }
 
-    // 2. Obtener todos los registros de asistencia para el mes seleccionado
-    const { data: asistenciaMes, error: asistenciaError } = await supabase
+    // Obtener registros de asistencia para el período
+    const { data: asistenciaData, error: asistenciaError } = await supabase
       .from('asistencia')
       .select(`
         estudiante_id,
+        curso_id,
         fecha,
-        presente,
-        justificado
+        presente
       `)
       .gte('fecha', primerDia)
       .lte('fecha', ultimoDia)
-      .order('estudiante_id')
-      .order('fecha')
 
     if (asistenciaError) {
       console.error('Error al obtener asistencia:', asistenciaError)
       return NextResponse.json({ error: asistenciaError.message }, { status: 500 })
     }
 
-    if (!asistenciaMes || asistenciaMes.length === 0) {
+    if (!asistenciaData || asistenciaData.length === 0) {
       return NextResponse.json({
         mes: parseInt(mes),
         año: parseInt(año),
@@ -63,151 +62,99 @@ export async function GET(request: Request) {
       })
     }
 
-    // 3. Agrupar por estudiante y calcular estadísticas
-    const estadisticasPorEstudiante: Record<string, any> = {}
+    // Procesar datos: agrupar por estudiante y contar días asistidos
+    const estudiantesMap: Record<string, any> = {}
 
-    asistenciaMes.forEach(registro => {
-      const { estudiante_id, fecha, presente, justificado } = registro
-      
-      if (!estadisticasPorEstudiante[estudiante_id]) {
-        estadisticasPorEstudiante[estudiante_id] = {
-          fechas_registradas: new Set(),
-          dias_presente: 0,
-          dias_ausente: 0,
-          ausentes_justificadas: 0,
-          ausentes_injustificadas: 0
+    asistenciaData.forEach((registro: any) => {
+      const key = `${registro.estudiante_id}-${registro.curso_id}`
+      if (!estudiantesMap[key]) {
+        estudiantesMap[key] = {
+          estudiante_id: registro.estudiante_id,
+          curso_id: registro.curso_id,
+          dias_asistidos: 0,
+          total_dias_habiles: diasHabiles.length
         }
       }
-      
-      const stats = estadisticasPorEstudiante[estudiante_id]
-      stats.fechas_registradas.add(fecha)
-      
-      if (presente) {
-        stats.dias_presente++
-      } else {
-        stats.dias_ausente++
-        if (justificado) {
-          stats.ausentes_justificadas++
-        } else {
-          stats.ausentes_injustificadas++
-        }
+      if (registro.presente) {
+        estudiantesMap[key].dias_asistidos++
       }
     })
 
-    // Convertir Set a array y calcular totales
-    Object.keys(estadisticasPorEstudiante).forEach(estudianteId => {
-      const stats = estadisticasPorEstudiante[estudianteId]
-      stats.fechas_registradas = Array.from(stats.fechas_registradas)
-      stats.total_dias_registrados = stats.fechas_registradas.length
-    })
+    // Filtrar estudiantes con asistencia perfecta (100% de los días hábiles)
+    const estudiantesConPerfectaAsistencia = Object.values(estudiantesMap)
+      .filter((est: any) => est.dias_asistidos === est.total_dias_habiles)
 
-    // 4. Calcular total de estudiantes que tienen registros en el mes
-    const totalEstudiantesEnMes = Object.keys(estadisticasPorEstudiante).length
-
-    // 5. Identificar estudiantes con 100% de asistencia
-    const estudiantesConPerfectaAsistencia: any[] = []
-    
-    for (const [estudianteId, stats] of Object.entries(estadisticasPorEstudiante)) {
-      const porcentajeAsistencia = stats.total_dias_registrados > 0 
-        ? (stats.dias_presente / stats.total_dias_registrados) * 100 
-        : 0
-      
-      if (porcentajeAsistencia === 100) {
-        estudiantesConPerfectaAsistencia.push({
-          estudiante_id: estudianteId,
-          ...stats,
-          porcentaje_asistencia: 100
-        })
-      }
-    }
-
-    // 6. Si hay estudiantes con 100%, obtener sus datos personales
-    const estudiantesPerfectos: any[] = []
-    
+    // Si hay estudiantes con asistencia perfecta, obtener sus datos personales
     if (estudiantesConPerfectaAsistencia.length > 0) {
-      const estudianteIds = estudiantesConPerfectaAsistencia.map(e => e.estudiante_id)
-      
-      // Buscar por estudiante_id
-      const { data: estudiantesDetalles, error: estudiantesError } = await supabase
-        .from('estudiantes_detalles')
-        .select('id, estudiante_id, nro_registro, curso_id')
-        .in('estudiante_id', estudianteIds)
+      const estudianteIds = estudiantesConPerfectaAsistencia.map((e: any) => e.estudiante_id)
+      const cursoIds = estudiantesConPerfectaAsistencia.map((e: any) => e.curso_id)
 
-      if (estudiantesError) {
-        console.error('Error al obtener estudiantes detalles:', estudiantesError)
-        return NextResponse.json({ error: estudiantesError.message }, { status: 500 })
-      }
+      // Obtener datos en paralelo
+      const [estudiantesDetallesRes, usuariosRes, cursosRes] = await Promise.all([
+        supabase
+          .from('estudiantes_detalles')
+          .select('id, estudiante_id, curso_id')
+          .in('estudiante_id', estudianteIds),
+        supabase
+          .from('usuarios')
+          .select('id, nombres, apellidos')
+          .in('id', estudianteIds),
+        supabase
+          .from('cursos')
+          .select('id, nombre_curso')
+          .in('id', cursoIds)
+      ])
 
-      // Obtener información de usuarios
-      const usuarioIds = estudiantesDetalles?.map(ed => ed.estudiante_id) || []
-      const { data: usuariosData, error: usuariosError } = await supabase
-        .from('usuarios')
-        .select('id, rut, nombres, apellidos')
-        .in('id', usuarioIds)
-
-      // Obtener información de cursos
-      const cursoIds = estudiantesDetalles?.map(ed => ed.curso_id) || []
-      const { data: cursosData, error: cursosError } = await supabase
-        .from('cursos')
-        .select('id, nombre_curso, nivel, letra')
-        .in('id', cursoIds)
+      const estudiantesDetalles = estudiantesDetallesRes.data || []
+      const usuariosData = usuariosRes.data || []
+      const cursosData = cursosRes.data || []
 
       // Combinar los datos
-      estudiantesDetalles?.forEach(detalle => {
-        const usuario = usuariosData?.find(u => u.id === detalle.estudiante_id)
-        const curso = cursosData?.find(c => c.id === detalle.curso_id)
-        const stats = estudiantesConPerfectaAsistencia.find(e => e.estudiante_id === detalle.estudiante_id)
-        
-        if (stats) {
-          // Formatear nombre con apellidos primero
-          const nombres = usuario?.nombres || ''
-          const apellidos = usuario?.apellidos || ''
-          const nombreCompleto = apellidos && nombres 
-            ? `${apellidos}, ${nombres}` 
-            : `${apellidos}${nombres}`.trim()
-          
-          const nombreCurso = curso?.nombre_curso || `${curso?.nivel}${curso?.letra}` || 'Sin curso'
-          
-          estudiantesPerfectos.push({
-            id: detalle.id,
-            nombres: nombres,
-            apellidos: apellidos,
-            nombreCompleto: nombreCompleto,
-            curso: nombreCurso,
-            curso_id: detalle.curso_id,
-            diasPresente: stats.dias_presente,
-            diasRegistrados: stats.total_dias_registrados
-          })
+      const estudiantesPerfectos = estudiantesDetalles.map((detalle: any) => {
+        const usuario = usuariosData.find((u: any) => u.id === detalle.estudiante_id)
+        const curso = cursosData.find((c: any) => c.id === detalle.curso_id)
+        const stats = estudiantesConPerfectaAsistencia.find((e: any) =>
+          e.estudiante_id === detalle.estudiante_id && e.curso_id === detalle.curso_id
+        )
+
+        return {
+          id: detalle.id,
+          nombres: usuario?.nombres || '',
+          apellidos: usuario?.apellidos || '',
+          nombreCompleto: usuario ? `${usuario.apellidos}, ${usuario.nombres}` : '',
+          curso: curso?.nombre_curso || 'Sin curso',
+          diasPresente: stats?.dias_asistidos || 0,
+          diasRegistrados: stats?.total_dias_habiles || 0
         }
       })
 
-      // Ordenar por curso primero, luego por apellidos
+      // Ordenar por curso y luego por apellidos
       estudiantesPerfectos.sort((a, b) => {
-        // Primero ordenar por curso
-        const cursoComparacion = a.curso.localeCompare(b.curso, 'es', { sensitivity: 'base' })
-        if (cursoComparacion !== 0) return cursoComparacion
-        
-        // Luego ordenar por apellidos
-        const apellidosA = a.apellidos || a.nombreCompleto.split(',')[0]
-        const apellidosB = b.apellidos || b.nombreCompleto.split(',')[0]
-        return apellidosA.localeCompare(apellidosB, 'es', { sensitivity: 'base' })
+        const cursoComp = a.curso.localeCompare(b.curso, 'es', { sensitivity: 'base' })
+        if (cursoComp !== 0) return cursoComp
+        return a.apellidos.localeCompare(b.apellidos, 'es', { sensitivity: 'base' })
+      })
+
+      return NextResponse.json({
+        mes: parseInt(mes),
+        año: parseInt(año),
+        total_dias_habiles: diasHabiles.length,
+        total_estudiantes: estudiantesPerfectos.length,
+        estudiantes_perfectos: estudiantesPerfectos,
+        total_perfectos: estudiantesPerfectos.length,
+        porcentaje_perfectos: estudiantesPerfectos.length > 0 ? '100.0' : '0.0'
       })
     }
 
-    // Calcular porcentaje de estudiantes con asistencia perfecta
-    const porcentajePerfectos = totalEstudiantesEnMes > 0 
-      ? ((estudiantesPerfectos.length / totalEstudiantesEnMes) * 100).toFixed(1)
-      : '0.0'
-
+    // No hay estudiantes con asistencia perfecta
     return NextResponse.json({
       mes: parseInt(mes),
       año: parseInt(año),
       total_dias_habiles: diasHabiles.length,
-      total_estudiantes: totalEstudiantesEnMes,
-      estudiantes_perfectos: estudiantesPerfectos,
-      total_perfectos: estudiantesPerfectos.length,
-      porcentaje_perfectos: porcentajePerfectos
+      estudiantes_perfectos: [],
+      total: 0
     })
+
   } catch (err: any) {
     console.error('Error en GET /api/asistencia/perfecta:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })

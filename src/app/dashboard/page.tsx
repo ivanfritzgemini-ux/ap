@@ -21,9 +21,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Users, Briefcase, ClipboardCheck, ArrowUpRight, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle, School } from "lucide-react"
-import { AsistenciaPerfectaCard } from '@/components/dashboard/asistencia-perfecta-card'
 import { ResumenAsistenciaCard } from '@/components/dashboard/resumen-asistencia-card'
 import { TendenciaAsistenciaCard } from '@/components/dashboard/tendencia-asistencia-card'
+import { PerfectAttendanceByCourseCard } from '@/components/dashboard/perfect-attendance-by-course-card'
 import { EstablishmentLogo } from "@/components/establishment-logo"
 import { EnrollmentChart } from "@/components/dashboard/admin/enrollment-chart"
 import { MonthlyMovementsWrapper } from '@/components/dashboard/monthly-movements-wrapper'
@@ -124,14 +124,16 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
       </Card>
     </div>
     
-     <div className="grid gap-6 lg:grid-cols-2">
-        <AsistenciaPerfectaCard />
-     </div>
      
      {/* Nueva sección para tarjetas de asistencia */}
      <div className="grid gap-6 lg:grid-cols-2">
         <ResumenAsistenciaCard />
         <TendenciaAsistenciaCard />
+     </div>
+
+     {/* Tarjeta de asistencia perfecta por curso */}
+     <div className="grid gap-6">
+        <PerfectAttendanceByCourseCard />
      </div>
      
      {/* Tarjeta de asistencia semanal */}

@@ -1,3 +1,4 @@
+import { getFeriadosDelAño } from '@/lib/feriados';
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -48,65 +49,7 @@ interface PeriodoAcademico {
   fecha_fin: string
 }
 
-// Feriados chilenos por año
-const feriadosPorAño: Record<string, Record<string, string>> = {
-  '2024': {
-    '2024-01-01': 'Año Nuevo',
-    '2024-03-29': 'Viernes Santo',
-    '2024-03-30': 'Sábado Santo',
-    '2024-05-01': 'Día del Trabajador',
-    '2024-05-21': 'Día de las Glorias Navales',
-    '2024-06-29': 'San Pedro y San Pablo',
-    '2024-07-16': 'Día de la Virgen del Carmen',
-    '2024-08-15': 'Asunción de la Virgen',
-    '2024-09-18': 'Fiestas Patrias',
-    '2024-09-19': 'Glorias del Ejército',
-    '2024-10-12': 'Encuentro de Dos Mundos',
-    '2024-10-31': 'Día de las Iglesias Evangélicas',
-    '2024-11-01': 'Día de Todos los Santos',
-    '2024-12-08': 'Inmaculada Concepción',
-    '2024-12-25': 'Navidad'
-  },
-  '2025': {
-    '2025-01-01': 'Año Nuevo',
-    '2025-04-18': 'Viernes Santo',
-    '2025-04-19': 'Sábado Santo',
-    '2025-05-01': 'Día del Trabajador',
-    '2025-05-21': 'Día de las Glorias Navales',
-    '2025-06-29': 'San Pedro y San Pablo',
-    '2025-07-16': 'Día de la Virgen del Carmen',
-    '2025-08-15': 'Asunción de la Virgen',
-    '2025-09-18': 'Fiestas Patrias',
-    '2025-09-19': 'Glorias del Ejército',
-    '2025-10-12': 'Encuentro de Dos Mundos',
-    '2025-10-31': 'Día de las Iglesias Evangélicas',
-    '2025-11-01': 'Día de Todos los Santos',
-    '2025-12-08': 'Inmaculada Concepción',
-    '2025-12-25': 'Navidad'
-  },
-  '2026': {
-    '2026-01-01': 'Año Nuevo',
-    '2026-04-03': 'Viernes Santo',
-    '2026-04-04': 'Sábado Santo',
-    '2026-05-01': 'Día del Trabajador',
-    '2026-05-21': 'Día de las Glorias Navales',
-    '2026-06-29': 'San Pedro y San Pablo',
-    '2026-07-16': 'Día de la Virgen del Carmen',
-    '2026-08-15': 'Asunción de la Virgen',
-    '2026-09-18': 'Fiestas Patrias',
-    '2026-09-19': 'Glorias del Ejército',
-    '2026-10-12': 'Encuentro de Dos Mundos',
-    '2026-10-31': 'Día de las Iglesias Evangélicas',
-    '2026-11-01': 'Día de Todos los Santos',
-    '2026-12-08': 'Inmaculada Concepción',
-    '2026-12-25': 'Navidad'
-  }
-}
 
-// Función para obtener feriados del año seleccionado
-const getFeriadosDelAño = (año: string) => {
-  return feriadosPorAño[año] || {}
-}
 
 const meses = [
   { valor: 1, nombre: 'Enero' },
@@ -1898,6 +1841,65 @@ export default function AsistenciaMensualPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Sección: Estudiantes con 100% de Asistencia */}
+        {canShowTable && (() => {
+          const { estadisticasPorEstudiante } = calcularEstadisticas()
+          const estudiantesCon100 = estudiantes.filter(estudiante => {
+            const estadistica = estadisticasPorEstudiante.find(
+              est => est.estudianteId === estudiante.id
+            )
+            return estadistica && estadistica.porcentaje === 100
+          })
+
+          if (estudiantesCon100.length === 0) return null
+
+          return (
+            <Card className="border-green-200 bg-green-50/30 dark:bg-green-950/10 dark:border-green-800">
+              <CardHeader>
+                <CardTitle className="text-green-800 dark:text-green-200 flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-full bg-green-500 flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">✓</span>
+                  </div>
+                  Estudiantes con 100% de Asistencia
+                  <Badge variant="default" className="bg-green-600 text-white">
+                    {estudiantesCon100.length} {estudiantesCon100.length === 1 ? 'estudiante' : 'estudiantes'}
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-green-700 dark:text-green-300">
+                  Estos estudiantes han asistido a todos los días hábiles del mes de {meses.find(m => m.valor.toString() === selectedMes)?.nombre} {selectedAño}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {estudiantesCon100.map((estudiante, index) => {
+                    const curso = cursos.find(c => c.id === selectedCurso)
+                    return (
+                      <div key={estudiante.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-green-200 dark:border-green-700 shadow-sm">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">{index + 1}</span>
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                              {estudiante.name}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {curso?.nombre_curso || 'Sin curso'}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge className="bg-green-600 text-white font-bold">
+                          100%
+                        </Badge>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })()}
 
         {loading && (
           <Card>
