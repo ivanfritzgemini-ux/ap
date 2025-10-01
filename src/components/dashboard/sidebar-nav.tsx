@@ -49,8 +49,10 @@ const navItems = {
     teacher: [
     { href: '/dashboard/asistencia', label: 'Asistencia', icon: ClipboardCheck },
     { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: BookOpen },
+    { href: '/dashboard/teacher/courses', label: 'Cursos', icon: School },
     { href: '/dashboard/asignaturas', label: 'Asignaturas', icon: Book },
     { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
+    { href: '/dashboard/teacher/reports', label: 'Reportes', icon: BarChart2 },
   ],
   parent: [
     { href: '/dashboard/parent/overview', label: 'Resumen del Niño', icon: User },
@@ -80,7 +82,7 @@ const getNavLinksForRole = (role: Role) => {
     });
   }
 
-  switch (role) {
+  switch (normalized) {
     case 'teacher':
       return [...navItems.all, ...navItems.teacher];
     case 'parent':

@@ -1,6 +1,9 @@
 import { CourseManagementClient } from "@/components/dashboard/admin/course-management-client";
+import { requireAdmin } from "@/lib/auth";
 
-export default function CourseManagementPage() {
+export default async function CourseManagementPage() {
+  await requireAdmin();
+
   return (
     <div className="space-y-6">
       <div>

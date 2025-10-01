@@ -1,10 +1,12 @@
 
 import { UserManagementClient } from '@/components/dashboard/admin/user-management-client'
-
 import { createServerClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireAdmin } from "@/lib/auth";
 
 export default async function ViewUsersPage() {
+  await requireAdmin();
+
   // Render the client-side user management component which will fetch data from our new API
   return (
     <div className="space-y-6">

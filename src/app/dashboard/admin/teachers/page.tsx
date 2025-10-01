@@ -1,6 +1,9 @@
 import { TeacherManagementClient } from "@/components/dashboard/admin/teacher-management-client";
+import { requireAdmin } from "@/lib/auth";
 
-export default function TeacherManagementPage() {
+export default async function TeacherManagementPage() {
+  await requireAdmin();
+
   return (
     <div className="space-y-6">
       <div>

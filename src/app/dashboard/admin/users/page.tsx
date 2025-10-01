@@ -1,7 +1,10 @@
 import { UserManagementClient } from "@/components/dashboard/admin/user-management-client";
 import { fetchUsers } from "@/lib/data";
+import { requireAdmin } from "@/lib/auth";
 
 export default async function UserManagementPage() {
+  await requireAdmin();
+
   const users = await fetchUsers();
 
   return (

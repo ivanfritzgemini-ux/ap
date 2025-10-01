@@ -45,7 +45,7 @@ export default async function DashboardLayout({
   const normalizeRole = (r: string) => {
     const s = (r || '').toString().toLowerCase().trim();
     if (s.includes('admin')) return 'administrator';
-    if (s.includes('teacher') || s.includes('profesor')) return 'teacher';
+    if (s.includes('teacher') || s.includes('profesor') || s.includes('docente')) return 'teacher';
     if (s.includes('parent') || s.includes('padre') || s.includes('madre')) return 'parent';
     if (s.includes('student') || s.includes('estudiante') || s.includes('alumno')) return 'student';
     return s || 'student';

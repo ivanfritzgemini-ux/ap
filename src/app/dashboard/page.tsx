@@ -1,3 +1,4 @@
+import { getStudentsByHeadTeacher } from "@/lib/data";
 import {
   Card,
   CardContent,
@@ -20,7 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Users, Briefcase, ClipboardCheck, ArrowUpRight, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle, School } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Users, Briefcase, ClipboardCheck, ArrowUpRight, UserPlus, UserMinus, Book, GraduationCap, UserCheck, CheckCircle, School, Calendar, ClipboardList } from "lucide-react"
 import { ResumenAsistenciaCard } from '@/components/dashboard/resumen-asistencia-card'
 import { TendenciaAsistenciaCard } from '@/components/dashboard/tendencia-asistencia-card'
 import { AsistenciaPerfectaCard } from '@/components/dashboard/asistencia-perfecta-card'
@@ -35,6 +38,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 
 import { GenderDonut } from '@/components/dashboard/gender-donut'
+import { TeacherGenderDonut } from '@/components/dashboard/teacher-gender-donut'
 
 const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCourses, activeClasses, enrollmentData }: { fullName: string; role: string, totalStudents:number, totalTeachers:number, totalCourses:number, activeClasses:number, enrollmentData:{month:string;matriculas:number}[] }) => (
   <div className="space-y-6">
@@ -188,54 +192,129 @@ const AdminDashboard = ({ fullName, role, totalStudents, totalTeachers, totalCou
   </div>
 );
 
-const TeacherDashboard = ({ fullName, role }: { fullName: string; role: string }) => (
-    <div className="grid gap-6">
-        <div>
-          <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
-          <p className="text-sm text-muted-foreground">{role}</p>
-        </div>
-        <Card>
-            <CardHeader>
-                <CardTitle>Tus Clases de Hoy</CardTitle>
-                <CardDescription>Este es tu horario de clases para hoy.</CardDescription>
-            </CardHeader>
-            <CardContent>
+const TeacherDashboard = async ({ fullName, role, userId }: { fullName: string; role: string; userId: string }) => {
+  const supabase = await createServerClient();
+
+  // Verificar si el docente es profesor jefe de algún curso
+  const { data: cursosProfesorJefe } = await supabase
+    .from('cursos')
+    .select('id, nombre_curso, nivel, letra, profesor_jefe_id')
+    .eq('profesor_jefe_id', userId);
+
+  // Si tiene cursos como profesor jefe, tomar el primero
+  const cursoProfesorJefe = cursosProfesorJefe?.[0] || null;
+
+  let estudiantesCursoJefe: any[] = [];
+  if (cursoProfesorJefe) {
+    estudiantesCursoJefe = await getStudentsByHeadTeacher(userId);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-1 mb-4">
+        <h2 className="text-lg font-semibold">Hola, {fullName}</h2>
+        <span className="text-sm text-muted-foreground">{role}</span>
+        {cursoProfesorJefe && (
+          <span className="text-sm text-blue-700 font-medium">
+            Curso a cargo: {cursoProfesorJefe.nivel}º Medio {cursoProfesorJefe.letra}
+          </span>
+        )}
+      </div>
+
+      {cursoProfesorJefe && (
+        <>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Alumnos</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{estudiantesCursoJefe.length}</div>
+                <p className="text-xs text-muted-foreground">
+                  Alumnos matriculados en el curso
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Asistencia Promedio</CardTitle>
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">95.2%</div>
+                <p className="text-xs text-muted-foreground">
+                  Promedio del último mes
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Asistencia Perfecta</CardTitle>
+                <UserCheck className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">5</div>
+                <p className="text-xs text-muted-foreground">
+                  Alumnos con 100% de asistencia
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Alumnos del Curso a Cargo</CardTitle>
+                <CardDescription>Listado de alumnos actualmente matriculados en tu curso.</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Hora</TableHead>
-                            <TableHead>Clase</TableHead>
-                            <TableHead>Salón</TableHead>
-                            <TableHead>Estado</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow>
-                            <TableCell>9:00 AM - 10:00 AM</TableCell>
-                            <TableCell>Grado 10 - Matemáticas</TableCell>
-                            <TableCell>301A</TableCell>
-                            <TableCell>Próxima</TableCell>
-                        </TableRow>
-                        <TableRow>
-                            <TableCell>10:15 AM - 11:15 AM</TableCell>
-                            <TableCell>Grado 11 - Física</TableCell>
-                            <TableCell>402B</TableCell>
-                            <TableCell>Completada</TableCell>
-                        </TableRow>
-                    </TableBody>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre Completo</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>N° Registro</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {estudiantesCursoJefe.map((est: any) => (
+                      <TableRow key={est.id}>
+                        <TableCell>{est.nombre_completo}</TableCell>
+                        <TableCell>{est.email}</TableCell>
+                        <TableCell>{est.nro_registro}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
                 </Table>
-            </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribución por Sexo</CardTitle>
+                <CardDescription>Porcentaje de estudiantes por sexo.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TeacherGenderDonut courseId={cursoProfesorJefe.id} />
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {!cursoProfesorJefe && (
         <Card>
-            <CardHeader>
-                <CardTitle>Anuncios Recientes</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p>Reunión de personal a las 3 PM en la sala de conferencias principal.</p>
-            </CardContent>
+          <CardHeader>
+            <CardTitle>No tienes cursos a cargo</CardTitle>
+            <CardDescription>
+              Actualmente no eres profesor jefe de ningún curso. Si crees que esto es un error, por favor contacta al administrador.
+            </CardDescription>
+          </CardHeader>
         </Card>
+      )}
     </div>
-);
+  );
+};
 
 const ParentDashboard = ({ fullName, role }: { fullName: string; role: string }) => (
     <div className="grid gap-6">
@@ -333,7 +412,7 @@ export default async function DashboardPage() {
     const normalizeRole = (r: string) => {
       const s = (r || '').toString().toLowerCase().trim();
       if (s.includes('admin')) return 'administrator';
-      if (s.includes('teacher') || s.includes('profesor')) return 'teacher';
+      if (s.includes('teacher') || s.includes('profesor') || s.includes('docente')) return 'teacher';
       if (s.includes('parent') || s.includes('padre') || s.includes('madre')) return 'parent';
       if (s.includes('student') || s.includes('estudiante') || s.includes('alumno')) return 'student';
       return s || 'student';
@@ -435,7 +514,7 @@ export default async function DashboardPage() {
   DashboardComponent = () => <AdminDashboard fullName={fullName} role={userRole} totalStudents={totalStudents} totalTeachers={totalTeachers} totalCourses={totalCourses} activeClasses={activeClasses} enrollmentData={enrollmentData} />;
       break;
     case "teacher":
-      DashboardComponent = () => <TeacherDashboard fullName={fullName} role={userRole} />;
+      DashboardComponent = () => <TeacherDashboard fullName={fullName} role={userRole} userId={user.id} />;
       break;
     case "parent":
       DashboardComponent = () => <ParentDashboard fullName={fullName} role={userRole} />;

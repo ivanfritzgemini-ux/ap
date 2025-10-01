@@ -1,7 +1,10 @@
 import { ParentAccessClient } from "@/components/dashboard/admin/parent-access-client";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireAdmin } from "@/lib/auth";
 
-export default function ParentAccessPage() {
+export default async function ParentAccessPage() {
+    await requireAdmin();
+
     return (
         <div className="space-y-6">
             <div>
@@ -10,7 +13,7 @@ export default function ParentAccessPage() {
                     Utilice esta herramienta para confirmar que un padre solo tiene acceso a sus estudiantes autorizados.
                 </p>
             </div>
-            
+
             <Card>
                 <CardHeader>
                     <CardTitle>Verificador de Acceso</CardTitle>
