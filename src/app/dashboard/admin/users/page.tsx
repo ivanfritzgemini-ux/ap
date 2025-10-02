@@ -1,7 +1,11 @@
 import { UserManagementClient } from "@/components/dashboard/admin/user-management-client";
 import { fetchUsers } from "@/lib/data";
+import { requireAdmin } from "@/lib/auth/permissions";
 
 export default async function UserManagementPage() {
+  // Require admin role to access this page
+  await requireAdmin();
+  
   const users = await fetchUsers();
 
   return (

@@ -1,23 +1,40 @@
 import { createServerClient as _createServerClient, type CookieOptions } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 
 export async function createServerClient() {
-  // cookies() returns a RequestCookies object in Next.js; to satisfy types we use a light wrapper
-  const cookieStore = await cookies()
+  let cookieStore: any = null;
+  
+  try {
+    // Try to get cookies if available (works in server components)
+    const { cookies } = await import('next/headers')
+    cookieStore = await cookies()
+  } catch (error) {
+    // Fall back to no-op if cookies() is not available
+    console.warn('Cookies not available, using fallback mode')
+  }
 
   return _createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get?.(name)?.value
+        getAll() {
+          if (cookieStore?.getAll) {
+            return cookieStore.getAll()
+          }
+          return []
         },
-        set(name: string, value: string, options: CookieOptions) {
-          try { cookieStore.set?.({ name, value, ...options }) } catch (e) { /* best-effort */ }
-        },
-        remove(name: string, options: CookieOptions) {
-          try { cookieStore.set?.({ name, value: '', ...options }) } catch (e) { /* best-effort */ }
+        setAll(cookiesToSet) {
+          if (cookieStore?.set) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options)
+              })
+            } catch (error) {
+              // The `setAll` method was called from a Server Component.
+              // This can be ignored if you have middleware refreshing
+              // user sessions.
+            }
+          }
         },
       },
     }

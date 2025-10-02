@@ -1,8 +1,11 @@
 import { EstablecimientoManagementClient } from '../../../../components/dashboard/admin/establecimiento-client'
 import { DiasBloqueadosManagement } from '../../../../components/dashboard/admin/dias-bloqueados-management'
 import { createServerClient } from '@/lib/supabase/server'
+import { requireAdmin } from "@/lib/auth/permissions";
 
 export default async function EstablecimientoPage() {
+  // Require admin role to access this page
+  await requireAdmin();
   const supabase = await createServerClient()
 
   let estabData = null

@@ -23,7 +23,7 @@ import {
   BookOpen,
   School
 } from "lucide-react";
-import type { Role } from '@/lib/types';
+import type { Role } from '@/types/roles';
 
 interface SidebarNavProps {
   userRole: Role;
@@ -38,55 +38,69 @@ const navItems = {
     { href: '/dashboard/admin/students', label: 'Estudiantes', icon: GraduationCap },
     { href: '/dashboard/admin/teachers', label: 'Profesores', icon: Briefcase },
     { href: '/dashboard/admin/courses', label: 'Cursos', icon: School },
-    { href: '/dashboard/asignaturas', label: 'Asignaturas', icon: Book },
-    { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
-    { href: '/dashboard/asistencia', label: 'Asistencia', icon: ClipboardCheck },
-    { href: '#', label: 'Reportes', icon: BarChart2 },
-  { href: '/dashboard/admin/establecimiento', label: 'Establecimiento', icon: Building },
-    { href: '/dashboard/admin/parent-access', label: 'Acceso de Padres', icon: ShieldCheck },
-    { href: '/dashboard/admin/view-users', label: 'Ver Usuarios DB', icon: Database },
+    { href: '/dashboard/admin/subjects', label: 'Asignaturas', icon: Book },
+    { href: '/dashboard/admin/grades', label: 'Calificaciones', icon: ClipboardList },
+    { href: '/dashboard/admin/attendance', label: 'Asistencia', icon: ClipboardCheck },
+    { href: '/dashboard/admin/reports', label: 'Reportes', icon: BarChart2 },
+    { href: '/dashboard/admin/settings', label: 'Establecimiento', icon: Building },
   ],
-    teacher: [
-    { href: '/dashboard/asistencia', label: 'Asistencia', icon: ClipboardCheck },
-    { href: '/dashboard/teacher/classes', label: 'Mis Clases', icon: BookOpen },
-    { href: '/dashboard/asignaturas', label: 'Asignaturas', icon: Book },
-    { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: ClipboardList },
+  directivo: [
+    { href: '/dashboard/director/students', label: 'Estudiantes', icon: GraduationCap },
+    { href: '/dashboard/director/teachers', label: 'Profesores', icon: Briefcase },
+    { href: '/dashboard/director/courses', label: 'Cursos', icon: School },
+    { href: '/dashboard/director/grades', label: 'Calificaciones', icon: ClipboardList },
+    { href: '/dashboard/director/attendance', label: 'Asistencia', icon: ClipboardCheck },
+    { href: '/dashboard/director/reports', label: 'Reportes', icon: BarChart2 },
   ],
-  parent: [
-    { href: '/dashboard/parent/overview', label: 'Resumen del Niño', icon: User },
+  docente: [
+    { href: '/dashboard/teacher/students', label: 'Mis Estudiantes', icon: GraduationCap },
+    { href: '/dashboard/teacher/subjects', label: 'Mis Asignaturas', icon: Book },
+    { href: '/dashboard/teacher/grades', label: 'Calificaciones', icon: ClipboardList },
+    { href: '/dashboard/teacher/attendance', label: 'Asistencia', icon: ClipboardCheck },
+    { href: '/dashboard/teacher/reports', label: 'Reportes', icon: BarChart2 },
   ],
-  student: [
-    { href: '/dashboard/student/schedule', label: 'Mi Horario', icon: Calendar },
+  apoderado: [
+    { href: '/dashboard/parent/children', label: 'Mis Hijos', icon: GraduationCap },
+    { href: '/dashboard/parent/grades', label: 'Calificaciones', icon: ClipboardList },
+    { href: '/dashboard/parent/attendance', label: 'Asistencia', icon: ClipboardCheck },
+    { href: '/dashboard/parent/reports', label: 'Reportes', icon: BarChart2 },
+  ],
+  estudiante: [
+    { href: '/dashboard/student/profile', label: 'Mi Perfil', icon: User },
+    { href: '/dashboard/student/course', label: 'Mi Curso', icon: School },
+    { href: '/dashboard/student/subjects', label: 'Mis Asignaturas', icon: Book },
+    { href: '/dashboard/student/grades', label: 'Calificaciones', icon: ClipboardList },
+    { href: '/dashboard/student/attendance', label: 'Asistencia', icon: ClipboardCheck },
   ],
 };
 
 const getNavLinksForRole = (role: Role) => {
   const normalized = (role || '').toString().toLowerCase();
-  // If administrator (accept english/spanish/variants), return every available nav item (from all groups) without duplicates
-  if (normalized === 'administrator' || normalized === 'administrador' || normalized.includes('admin')) {
-    const combined = [
-      ...navItems.all,
-      ...navItems.administrator,
-      ...navItems.teacher,
-      ...navItems.parent,
-      ...navItems.student,
-    ];
-    const seen = new Set<string>();
-    return combined.filter(item => {
-      const key = item.href + '|' + item.label;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-
-  switch (role) {
+  
+  switch (normalized) {
+    case 'admin':
+    case 'administrator':
+    case 'administrador':
+      return [...navItems.all, ...navItems.administrator];
+    case 'directivo':
+    case 'director':
+      return [...navItems.all, ...navItems.administrator.filter(item => 
+        !item.href.includes('usuarios') && !item.href.includes('establecimiento')
+      )];
+    case 'docente':
+    case 'profesor':
     case 'teacher':
-      return [...navItems.all, ...navItems.teacher];
+      return [...navItems.all, ...navItems.docente];
+    case 'apoyo':
+    case 'support':
+      return [...navItems.all, ...navItems.apoderado];
+    case 'apoderado':
     case 'parent':
-      return [...navItems.all, ...navItems.parent];
+    case 'guardian':
+      return [...navItems.all, ...navItems.apoderado];
+    case 'estudiante':
     case 'student':
-      return [...navItems.all, ...navItems.student];
+      return [...navItems.all, ...navItems.estudiante];
     default:
       return navItems.all;
   }

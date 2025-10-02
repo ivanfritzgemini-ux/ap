@@ -1,7 +1,11 @@
 import { StudentManagementClient } from "@/components/dashboard/admin/student-management-client";
 import { getStudents } from "@/lib/data";
+import { requireAdmin } from "@/lib/auth/permissions";
 
 export default async function StudentManagementPage() {
+  // Require admin role to access this page
+  await requireAdmin();
+  
   const students = await getStudents();
 
   return (

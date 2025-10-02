@@ -1,6 +1,9 @@
 import { TeacherManagementClient } from "@/components/dashboard/admin/teacher-management-client";
+import { requireAdmin } from "@/lib/auth/permissions";
 
-export default function TeacherManagementPage() {
+export default async function TeacherManagementPage() {
+  // Require admin role to access this page
+  await requireAdmin();
   return (
     <div className="space-y-6">
       <div>

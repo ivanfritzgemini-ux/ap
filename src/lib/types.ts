@@ -32,11 +32,12 @@ export interface Student {
   apellidos: string;
   curso: string;
   sexo: string;
-  email: string;
+  email?: string;
   enrollment_date: string;
   fecha_retiro?: string;
   motivo_retiro?: string;
   tiene_traslado?: boolean;
+  es_matricula_actual?: boolean;
 }
 
 export interface Asignatura {
